@@ -1,8 +1,8 @@
 # ALP Algorithm - Detailed Explanation
-
+`
 Adaptive Lossless floating-Point (ALP) Compression Algorithm
 
-## Overview
+`## Overview
 
 ALP compresses float64 data by:
 1. Finding optimal scale factor (exponent)

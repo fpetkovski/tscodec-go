@@ -34,6 +34,7 @@ func BenchmarkCompare_Sequential(b *testing.B) {
 	}
 
 	b.Run("ALP/Compress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		b.ResetTimer()
 		for b.Loop() {
 			_ = Compress(data)
@@ -41,6 +42,7 @@ func BenchmarkCompare_Sequential(b *testing.B) {
 	})
 
 	b.Run("ALP/Decompress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		compressed := Compress(data)
 		b.ResetTimer()
 		for b.Loop() {
@@ -49,6 +51,7 @@ func BenchmarkCompare_Sequential(b *testing.B) {
 	})
 
 	b.Run("Zstd/Compress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		dataBytes := float64sToBytes(data)
 		b.ResetTimer()
@@ -58,6 +61,7 @@ func BenchmarkCompare_Sequential(b *testing.B) {
 	})
 
 	b.Run("Zstd/Decompress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		decoder, _ := zstd.NewReader(nil)
 		dataBytes := float64sToBytes(data)
@@ -94,6 +98,7 @@ func BenchmarkCompare_RandomSensor(b *testing.B) {
 	}
 
 	b.Run("ALP/Compress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		b.ResetTimer()
 		for b.Loop() {
 			_ = Compress(data)
@@ -101,6 +106,7 @@ func BenchmarkCompare_RandomSensor(b *testing.B) {
 	})
 
 	b.Run("ALP/Decompress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		compressed := Compress(data)
 		b.ResetTimer()
 		for b.Loop() {
@@ -109,6 +115,7 @@ func BenchmarkCompare_RandomSensor(b *testing.B) {
 	})
 
 	b.Run("Zstd/Compress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		dataBytes := float64sToBytes(data)
 		b.ResetTimer()
@@ -118,6 +125,7 @@ func BenchmarkCompare_RandomSensor(b *testing.B) {
 	})
 
 	b.Run("Zstd/Decompress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		decoder, _ := zstd.NewReader(nil)
 		dataBytes := float64sToBytes(data)
@@ -154,6 +162,7 @@ func BenchmarkCompare_Constant(b *testing.B) {
 	}
 
 	b.Run("ALP/Compress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		b.ResetTimer()
 		for b.Loop() {
 			_ = Compress(data)
@@ -161,6 +170,7 @@ func BenchmarkCompare_Constant(b *testing.B) {
 	})
 
 	b.Run("ALP/Decompress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		compressed := Compress(data)
 		b.ResetTimer()
 		for b.Loop() {
@@ -169,6 +179,7 @@ func BenchmarkCompare_Constant(b *testing.B) {
 	})
 
 	b.Run("Zstd/Compress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		dataBytes := float64sToBytes(data)
 		b.ResetTimer()
@@ -178,6 +189,7 @@ func BenchmarkCompare_Constant(b *testing.B) {
 	})
 
 	b.Run("Zstd/Decompress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		decoder, _ := zstd.NewReader(nil)
 		dataBytes := float64sToBytes(data)
@@ -214,6 +226,7 @@ func BenchmarkCompare_TrulyRandom(b *testing.B) {
 	}
 
 	b.Run("ALP/Compress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		b.ResetTimer()
 		for b.Loop() {
 			_ = Compress(data)
@@ -221,6 +234,7 @@ func BenchmarkCompare_TrulyRandom(b *testing.B) {
 	})
 
 	b.Run("ALP/Decompress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		compressed := Compress(data)
 		b.ResetTimer()
 		for b.Loop() {
@@ -229,6 +243,7 @@ func BenchmarkCompare_TrulyRandom(b *testing.B) {
 	})
 
 	b.Run("Zstd/Compress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		dataBytes := float64sToBytes(data)
 		b.ResetTimer()
@@ -238,6 +253,7 @@ func BenchmarkCompare_TrulyRandom(b *testing.B) {
 	})
 
 	b.Run("Zstd/Decompress", func(b *testing.B) {
+		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		decoder, _ := zstd.NewReader(nil)
 		dataBytes := float64sToBytes(data)

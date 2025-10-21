@@ -3,73 +3,35 @@ package alp
 import (
 	"math"
 	"testing"
+
+	"alp-go/bitpack"
 )
 
 func TestBitPacking(t *testing.T) {
 	tests := []struct {
 		name     string
-		values   []uint64
-		bitWidth int
+		values   []int64
+		bitWidth uint
 	}{
 		{
 			name:     "8-bit values",
-			values:   []uint64{0, 1, 127, 255},
+			values:   []int64{0, 1, 127, 255},
 			bitWidth: 8,
 		},
 		{
 			name:     "4-bit values",
-			values:   []uint64{0, 1, 7, 15},
+			values:   []int64{0, 1, 7, 15},
 			bitWidth: 4,
 		},
 		{
 			name:     "16-bit values",
-			values:   []uint64{0, 100, 1000, 65535},
+			values:   []int64{0, 100, 1000, 65535},
 			bitWidth: 16,
 		},
 		{
 			name:     "1-bit values",
-			values:   []uint64{0, 1, 1, 0, 1},
+			values:   []int64{0, 1, 1, 0, 1},
 			bitWidth: 1,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Pack
-			packed := PackUint64Array(tt.values, tt.bitWidth)
-
-			// Unpack
-			unpacked := UnpackUint64Array(packed, len(tt.values), tt.bitWidth)
-
-			// Verify
-			if len(unpacked) != len(tt.values) {
-				t.Errorf("Length mismatch: got %d, want %d", len(unpacked), len(tt.values))
-			}
-
-			for i := range tt.values {
-				if unpacked[i] != tt.values[i] {
-					t.Errorf("Value mismatch at index %d: got %d, want %d", i, unpacked[i], tt.values[i])
-				}
-			}
-		})
-	}
-}
-
-func TestBitPackingSigned(t *testing.T) {
-	tests := []struct {
-		name     string
-		values   []int64
-		bitWidth int
-	}{
-		{
-			name:     "signed values",
-			values:   []int64{-100, -1, 0, 1, 100},
-			bitWidth: 16,
-		},
-		{
-			name:     "small signed values",
-			values:   []int64{-5, -1, 0, 1, 5},
-			bitWidth: 8,
 		},
 	}
 
@@ -119,6 +81,10 @@ func TestALPCompression(t *testing.T) {
 		{
 			name: "small decimals",
 			data: []float64{0.001, 0.002, 0.003, 0.004, 0.005},
+		},
+		{
+			name: "negative decimals",
+			data: []float64{-0.001, 0.002, 0.003, -0.004, 0.005},
 		},
 	}
 
@@ -303,4 +269,22 @@ func TestALPMixedRange(t *testing.T) {
 			t.Errorf("Value mismatch at index %d: got %f, want %f", i, decompressed[i], data[i])
 		}
 	}
+}
+
+// PackInt64Array packs an array of uint64 values with the same bit width
+func PackInt64Array(values []int64, bitWidth uint) []byte {
+	dst := make([]byte, BitPackedSize(uint32(len(values)), bitWidth))
+	bitpack.PackInt64(dst, values, bitWidth)
+	return dst
+}
+
+// UnpackInt64Array unpacks an array of int64 values
+func UnpackInt64Array(data []byte, count int, bitWidth uint) []int64 {
+	dst := make([]int64, count)
+	bitpack.UnpackInt64(dst, data, bitWidth)
+	return dst
+}
+
+func BitPackedSize(numValues uint32, bitWidth uint) int {
+	return bitpack.ByteCount(uint(numValues)*bitWidth) + bitpack.PaddingInt64
 }

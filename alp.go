@@ -3,6 +3,9 @@ package alp
 import (
 	"encoding/binary"
 	"math"
+
+	"alp-go/bitpack"
+	"alp-go/unsafecast"
 )
 
 const (
@@ -12,6 +15,8 @@ const (
 	MinExponent = -10
 	// SamplingSize is the number of values to sample for finding optimal encoding
 	SamplingSize = 1024
+	// MetadataSize is the size of metadata in bytes.
+	MetadataSize = 23
 )
 
 // EncodingType represents the type of encoding used
@@ -146,25 +151,30 @@ func (ac *ALPCompressor) Compress(data []float64) []byte {
 	minValue := intValues[0]
 	maxValue := intValues[0]
 	for _, v := range intValues {
-		if v < minValue {
-			minValue = v
-		}
-		if v > maxValue {
-			maxValue = v
-		}
+		minValue = min(minValue, v)
+		maxValue = max(maxValue, v)
 	}
 
-	// Convert to uint64 for bit packing
-	forValues := make([]uint64, len(intValues))
+	// Apply frame-of-reference to create adjusted int64 values
+	forValues := make([]int64, len(intValues))
 	for i, v := range intValues {
-		forValues[i] = uint64(v - minValue)
+		forValues[i] = v - minValue
 	}
 
-	// Find bit width
-	bitWidth := FindMaxBitWidth(forValues)
+	// Find bit width for signed integers
+	maxBits := 0
+	for _, v := range forValues {
+		bits := CalculateBitWidthSigned(v)
+		if bits > maxBits {
+			maxBits = bits
+		}
+	}
+	bitWidth := maxBits
 
-	// Pack data
-	packedData := PackUint64Array(forValues, bitWidth)
+	// Pack data using signed integer packing
+	packedSize := bitpack.ByteCount(uint(len(forValues)*bitWidth)) + bitpack.PaddingInt64
+	packedData := make([]byte, packedSize)
+	bitpack.PackInt64(packedData, forValues, uint(bitWidth))
 
 	// Create metadata
 	metadata := CompressionMetadata{
@@ -191,7 +201,7 @@ func (ac *ALPCompressor) Decompress(data []byte) []float64 {
 	}
 
 	// Decode metadata
-	metadata := decodeMetadata(data)
+	metadata := DecodeMetadata(data)
 
 	switch metadata.EncodingType {
 	case EncodingNone:
@@ -205,24 +215,18 @@ func (ac *ALPCompressor) Decompress(data []byte) []float64 {
 		return result
 
 	case EncodingALP:
-		// Calculate metadata size
-		metadataSize := getMetadataSize()
+		result := make([]float64, metadata.Count)
+		dst := unsafecast.Slice[int64](result)
+		bitpack.UnpackInt64(dst, data[MetadataSize:], uint(metadata.BitWidth))
 
-		// Unpack data
-		packedData := data[metadataSize:]
-		forValues := UnpackUint64Array(packedData, int(metadata.Count), int(metadata.BitWidth))
-
-		// Reverse frame-of-reference
-		intValues := make([]int64, len(forValues))
 		minValue := metadata.FrameOfRef
-		for i, v := range forValues {
-			intValues[i] = int64(v) + minValue
+		for i := range dst {
+			dst[i] += minValue
 		}
 
 		// Convert back to float64
 		factor := math.Pow(10, float64(metadata.Exponent))
-		result := make([]float64, len(intValues))
-		for i, v := range intValues {
+		for i, v := range dst {
 			result[i] = float64(v) / factor
 		}
 
@@ -230,6 +234,39 @@ func (ac *ALPCompressor) Decompress(data []byte) []float64 {
 
 	default:
 		return []float64{}
+	}
+}
+
+// DecompressValues decompresses ALP-encoded data
+func DecompressValues(result []float64, src []byte, metadata CompressionMetadata) {
+	clear(result)
+	if len(src) == 0 {
+		return
+	}
+
+	switch metadata.EncodingType {
+	case EncodingNone:
+	case EncodingConstant:
+		for i := range result {
+			result[i] = metadata.ConstantValue
+		}
+	case EncodingALP:
+		// Unpack src
+		packedData := src[MetadataSize:]
+		unpacked := unsafecast.Slice[int64](result)
+		bitpack.UnpackInt64(unpacked, packedData, uint(metadata.BitWidth))
+
+		// Reverse frame-of-reference
+		minValue := metadata.FrameOfRef
+		for i := range metadata.Count {
+			unpacked[i] = unpacked[i] + minValue
+		}
+
+		// Convert back to float64
+		factor := math.Pow(10, float64(metadata.Exponent))
+		for i, v := range unpacked {
+			result[i] = float64(v) / factor
+		}
 	}
 }
 
@@ -260,9 +297,9 @@ func encodeMetadata(metadata CompressionMetadata) []byte {
 	return buf[:23]
 }
 
-// decodeMetadata decodes compression metadata from bytes
-func decodeMetadata(data []byte) CompressionMetadata {
-	if len(data) < 23 {
+// DecodeMetadata decodes compression metadata from bytes
+func DecodeMetadata(data []byte) CompressionMetadata {
+	if len(data) < MetadataSize {
 		return CompressionMetadata{EncodingType: EncodingNone}
 	}
 
@@ -274,11 +311,6 @@ func decodeMetadata(data []byte) CompressionMetadata {
 		FrameOfRef:    int64(binary.LittleEndian.Uint64(data[7:15])),
 		ConstantValue: math.Float64frombits(binary.LittleEndian.Uint64(data[15:23])),
 	}
-}
-
-// getMetadataSize returns the size of metadata in bytes
-func getMetadataSize() int {
-	return 23
 }
 
 // Compress is a convenience function to compress float64 data
