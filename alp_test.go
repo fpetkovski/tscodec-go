@@ -163,6 +163,38 @@ func TestALPSingleValue(t *testing.T) {
 	}
 }
 
+func TestALPRandomDataset(t *testing.T) {
+	data := make([]float64, 1000)
+	for i := range data {
+		data[i] = randGen.Float64() * 1e10
+	}
+
+	compressed := Compress(data)
+	decompressed := Decompress(compressed)
+
+	if len(decompressed) != len(data) {
+		t.Errorf("Length mismatch: got %d, want %d", len(decompressed), len(data))
+	}
+
+	// Check a sample of values
+	// Use relative error for large numbers instead of absolute error
+	for i := 0; i < len(data); i += 100 {
+		absError := math.Abs(decompressed[i] - data[i])
+		relError := absError / math.Abs(data[i])
+
+		// For large numbers, use relative error threshold
+		// For small numbers, use absolute error threshold
+		if data[i] != 0 && relError > 1e-12 {
+			t.Errorf("Value mismatch at index %d: got %.15f, want %.15f (rel error: %e)", i, decompressed[i], data[i], relError)
+		} else if data[i] == 0 && absError > 1e-9 {
+			t.Errorf("Value mismatch at index %d: got %f, want %f (abs error: %e)", i, decompressed[i], data[i], absError)
+		}
+	}
+
+	ratio := CompressionRatio(len(data), len(compressed))
+	t.Logf("Large dataset compression ratio: %.2f%%", ratio*100)
+}
+
 func TestALPLargeDataset(t *testing.T) {
 	// Generate a larger dataset
 	data := make([]float64, 10000)

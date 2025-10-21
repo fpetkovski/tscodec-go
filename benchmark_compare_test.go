@@ -8,24 +8,6 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// Helper function to convert float64 slice to bytes
-func float64sToBytes(data []float64) []byte {
-	buf := make([]byte, len(data)*8)
-	for i, v := range data {
-		binary.LittleEndian.PutUint64(buf[i*8:(i+1)*8], math.Float64bits(v))
-	}
-	return buf
-}
-
-// Helper function to convert bytes back to float64 slice
-func bytesToFloat64s(data []byte) []float64 {
-	result := make([]float64, len(data)/8)
-	for i := range result {
-		result[i] = math.Float64frombits(binary.LittleEndian.Uint64(data[i*8 : (i+1)*8]))
-	}
-	return result
-}
-
 // Benchmark ALP vs Zstd on sequential integers
 func BenchmarkCompare_Sequential(b *testing.B) {
 	data := make([]float64, 1000)
@@ -384,4 +366,22 @@ func TestComparisonLossless(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Helper function to convert float64 slice to bytes
+func float64sToBytes(data []float64) []byte {
+	buf := make([]byte, len(data)*8)
+	for i, v := range data {
+		binary.LittleEndian.PutUint64(buf[i*8:(i+1)*8], math.Float64bits(v))
+	}
+	return buf
+}
+
+// Helper function to convert bytes back to float64 slice
+func bytesToFloat64s(data []byte) []float64 {
+	result := make([]float64, len(data)/8)
+	for i := range result {
+		result[i] = math.Float64frombits(binary.LittleEndian.Uint64(data[i*8 : (i+1)*8]))
+	}
+	return result
 }
