@@ -3,7 +3,6 @@ package alp
 import (
 	"encoding/binary"
 	"math"
-	"math/rand"
 	"testing"
 
 	"github.com/klauspost/compress/zstd"
@@ -91,7 +90,7 @@ func BenchmarkCompare_Sequential(b *testing.B) {
 func BenchmarkCompare_RandomSensor(b *testing.B) {
 	data := make([]float64, 1000)
 	for i := range data {
-		data[i] = math.Round((20.0+rand.Float64()*10.0)*100) / 100
+		data[i] = math.Round((20.0+randGen.Float64()*10.0)*100) / 100
 	}
 
 	b.Run("ALP/Compress", func(b *testing.B) {
@@ -211,7 +210,7 @@ func BenchmarkCompare_Constant(b *testing.B) {
 func BenchmarkCompare_TrulyRandom(b *testing.B) {
 	data := make([]float64, 1000)
 	for i := range data {
-		data[i] = rand.Float64() * 1e10
+		data[i] = randGen.Float64() * 1e10
 	}
 
 	b.Run("ALP/Compress", func(b *testing.B) {
