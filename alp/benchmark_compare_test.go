@@ -26,9 +26,10 @@ func BenchmarkCompare_Sequential(b *testing.B) {
 	b.Run("ALP/Decompress", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		compressed := Compress(data)
+		decompressed := make([]float64, len(data))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Decompress(compressed)
+			_ = Decompress(decompressed, compressed)
 		}
 	})
 
@@ -90,9 +91,10 @@ func BenchmarkCompare_RandomSensor(b *testing.B) {
 	b.Run("ALP/Decompress", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		compressed := Compress(data)
+		decompressed := make([]float64, len(data))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Decompress(compressed)
+			_ = Decompress(decompressed, compressed)
 		}
 	})
 
@@ -154,9 +156,10 @@ func BenchmarkCompare_Constant(b *testing.B) {
 	b.Run("ALP/Decompress", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		compressed := Compress(data)
+		decompressed := make([]float64, len(data))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Decompress(compressed)
+			_ = Decompress(decompressed, compressed)
 		}
 	})
 
@@ -218,9 +221,10 @@ func BenchmarkCompare_TrulyRandom(b *testing.B) {
 	b.Run("ALP/Decompress", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		compressed := Compress(data)
+		decompressed := make([]float64, len(data))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Decompress(compressed)
+			_ = Decompress(decompressed, compressed)
 		}
 	})
 
@@ -282,9 +286,10 @@ func BenchmarkCompare_Large(b *testing.B) {
 	b.Run("ALP/Decompress", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		compressed := Compress(data)
+		decompressed := make([]float64, len(data))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Decompress(compressed)
+			_ = Decompress(decompressed, compressed)
 		}
 	})
 
@@ -343,7 +348,8 @@ func TestComparisonLossless(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test ALP
 			alpCompressed := Compress(tt.data)
-			alpDecompressed := Decompress(alpCompressed)
+			alpDecompressed := make([]float64, len(tt.data))
+			Decompress(alpDecompressed, alpCompressed)
 
 			for i := range tt.data {
 				if alpDecompressed[i] != tt.data[i] {

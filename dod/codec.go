@@ -1,69 +1,95 @@
 package dod
 
 import (
-	"math"
-
 	"alp-go/alp"
 	"alp-go/bitpack"
+	"encoding/binary"
+	"math"
 )
 
-func Encode(dst []byte, src []int64) ([]byte, uint, int64) {
-	if len(src) == 0 {
-		return dst[:0], 0, 0
-	}
+const (
+	// Int64SizeBytes is the size in bytes of an int64 value.
+	Int64SizeBytes = 8
 
-	// d1 = v1 - v0
-	// dod1 = d1 - d0
-	d0 := src[0]
-	minVal := int64(math.MaxInt64)
-	forValues := make([]int64, len(src))
-	forValues[0] = src[0]
-	for i := 1; i < len(src); i++ {
-		d1 := src[i] - src[i-1]
-		dod1 := d1 - d0
-		d0 = d1
-		forValues[i] = dod1
-		minVal = min(minVal, dod1)
-	}
-	for i, v := range forValues {
-		forValues[i] = v - minVal
-	}
+	// BlockSize is the maximum amount of values that can be encoded at once.
+	BlockSize = 255
+)
 
-	bitWidth := 0
-	for _, v := range forValues {
-		bw := alp.CalculateBitWidthSigned(v)
-		bitWidth = max(bitWidth, bw)
-	}
+type Block [BlockSize]int64
 
-	n := bitpack.ByteCount(uint(len(forValues) * bitWidth))
-	packedSize := n + bitpack.PaddingInt64
-	packedData := make([]byte, packedSize)
-	bitpack.PackInt64(packedData, forValues, uint(bitWidth))
-	return packedData, uint(bitWidth), minVal
+// The HeaderSize is the size of the header of the encoded data.
+const HeaderSize = 8 + 1 + 1
+
+type Header struct {
+	BitWidth  uint8
+	NumValues uint8
+	MinVal    int64
 }
 
-func Decode(dst []int64, src []byte, bitWidth uint, minVal int64) []int64 {
+func Encode(dst []byte, src []int64) []byte {
 	if len(src) == 0 {
 		return dst[:0]
 	}
 
-	// 10, 15, 22, 31, 55
-	// 10, 5, 7, 9, 24
-	// 10, -5, 2, 2, 15
-
-	// dod = d1 - d0 -> d1 = dod + d0
-	// d1 = v1 - v0  -> v1 = d1 + v0
-	bitpack.UnpackInt64(dst, src, bitWidth)
-	for i, v := range dst {
-		dst[i] = v + minVal
+	d0 := int64(0)
+	minVal := int64(math.MaxInt64)
+	encoded := make([]int64, len(src))
+	encoded[0] = src[0]
+	for i := 1; i < len(src); i++ {
+		d1 := src[i] - src[i-1]
+		dod1 := d1 - d0
+		d0 = d1
+		encoded[i] = dod1
+		minVal = min(minVal, dod1)
+	}
+	for i := 1; i < len(encoded); i++ {
+		encoded[i] = encoded[i] - minVal
 	}
 
-	d0 := dst[0]
-	for i := 1; i < len(dst); i++ {
-		dod := dst[i]
-		d1 := dod + d0
+	bitWidth := 0
+	for _, v := range encoded[1:] {
+		bw := alp.CalculateBitWidth(uint64(v))
+		bitWidth = max(bitWidth, bw)
+	}
+
+	packedSize := bitpack.ByteCount(uint((len(encoded) - 1) * bitWidth))
+	totalSize := packedSize + Int64SizeBytes + HeaderSize + bitpack.PaddingInt64
+	packedData := make([]byte, totalSize)
+
+	// Encode header.
+	binary.LittleEndian.PutUint64(packedData[:8], uint64(minVal))
+	packedData[8] = uint8(bitWidth)
+	packedData[9] = uint8(len(src))
+
+	// Encode the first value as is and bitpack the rest.
+	binary.LittleEndian.PutUint64(packedData[HeaderSize:HeaderSize+Int64SizeBytes], uint64(encoded[0]))
+	bitpack.PackInt64(packedData[HeaderSize+Int64SizeBytes:], encoded[1:], uint(bitWidth))
+
+	return packedData
+}
+
+func Decode(dst []int64, src []byte) uint8 {
+	if len(src) == 0 {
+		return 0
+	}
+
+	header := Header{
+		MinVal:    int64(binary.LittleEndian.Uint64(src[:8])),
+		BitWidth:  src[8],
+		NumValues: src[9],
+	}
+
+	dst[0] = int64(binary.LittleEndian.Uint64(src[HeaderSize : HeaderSize+Int64SizeBytes]))
+	bitpack.UnpackInt64(dst[1:header.NumValues], src[HeaderSize+Int64SizeBytes:], uint(header.BitWidth))
+	for i := 1; i < int(header.NumValues); i++ {
+		dst[i] = dst[i] + header.MinVal
+	}
+
+	d0 := int64(0)
+	for i := 1; i < int(header.NumValues); i++ {
+		d1 := dst[i] + d0
 		dst[i] = d1 + dst[i-1]
 		d0 = d1
 	}
-	return dst
+	return header.NumValues
 }

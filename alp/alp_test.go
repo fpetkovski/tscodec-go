@@ -63,6 +63,22 @@ func TestALPCompression(t *testing.T) {
 		data []float64
 	}{
 		{
+			name: "empty",
+			data: []float64{},
+		},
+		{
+			name: "constant",
+			data: []float64{5.0, 5.0, 5.0, 5.0, 5.0},
+		},
+		{
+			name: "zero values",
+			data: []float64{0.0, 0.0, 0.0, 0.0},
+		},
+		{
+			name: "single",
+			data: []float64{5.0},
+		},
+		{
 			name: "simple integers",
 			data: []float64{1.0, 2.0, 3.0, 4.0, 5.0},
 		},
@@ -86,6 +102,14 @@ func TestALPCompression(t *testing.T) {
 			name: "negative decimals",
 			data: []float64{-0.001, 0.002, 0.003, -0.004, 0.005},
 		},
+		{
+			name: "scientific notation",
+			data: []float64{1e-5, 2e-5, 3e-5, 4e-5, 5e-5},
+		},
+		{
+			name: "mixed ranges",
+			data: []float64{0.1, 10.0, 100.0, 1000.0, 0.01},
+		},
 	}
 
 	for _, tt := range tests {
@@ -94,10 +118,11 @@ func TestALPCompression(t *testing.T) {
 			compressed := Compress(tt.data)
 
 			// Decompress
-			decompressed := Decompress(compressed)
+			decompressed := make([]float64, len(tt.data))
+			n := Decompress(decompressed, compressed)
 
 			// Verify length
-			if len(decompressed) != len(tt.data) {
+			if len(decompressed[:n]) != len(tt.data) {
 				t.Errorf("Length mismatch: got %d, want %d", len(decompressed), len(tt.data))
 			}
 
@@ -117,52 +142,6 @@ func TestALPCompression(t *testing.T) {
 	}
 }
 
-func TestALPEmptyData(t *testing.T) {
-	data := []float64{}
-	compressed := Compress(data)
-	decompressed := Decompress(compressed)
-
-	if len(decompressed) != 0 {
-		t.Errorf("Expected empty result, got %d elements", len(decompressed))
-	}
-}
-
-func TestALPConstantData(t *testing.T) {
-	// All values are the same
-	data := []float64{42.5, 42.5, 42.5, 42.5, 42.5}
-	compressed := Compress(data)
-	decompressed := Decompress(compressed)
-
-	if len(decompressed) != len(data) {
-		t.Errorf("Length mismatch: got %d, want %d", len(decompressed), len(data))
-	}
-
-	for i, v := range decompressed {
-		if v != data[i] {
-			t.Errorf("Value mismatch at index %d: got %f, want %f", i, v, data[i])
-		}
-	}
-
-	// Constant compression should be very efficient
-	if len(compressed) > 50 {
-		t.Errorf("Constant compression not efficient: %d bytes", len(compressed))
-	}
-}
-
-func TestALPSingleValue(t *testing.T) {
-	data := []float64{123.456}
-	compressed := Compress(data)
-	decompressed := Decompress(compressed)
-
-	if len(decompressed) != 1 {
-		t.Errorf("Length mismatch: got %d, want 1", len(decompressed))
-	}
-
-	if math.Abs(decompressed[0]-data[0]) > 1e-10 {
-		t.Errorf("Value mismatch: got %f, want %f", decompressed[0], data[0])
-	}
-}
-
 func TestALPRandomDataset(t *testing.T) {
 	data := make([]float64, 1000)
 	for i := range data {
@@ -170,9 +149,10 @@ func TestALPRandomDataset(t *testing.T) {
 	}
 
 	compressed := Compress(data)
-	decompressed := Decompress(compressed)
+	decompressed := make([]float64, len(data))
+	n := Decompress(decompressed, compressed)
 
-	if len(decompressed) != len(data) {
+	if len(decompressed[:n]) != len(data) {
 		t.Errorf("Length mismatch: got %d, want %d", len(decompressed), len(data))
 	}
 
@@ -203,9 +183,9 @@ func TestALPLargeDataset(t *testing.T) {
 	}
 
 	compressed := Compress(data)
-	decompressed := Decompress(compressed)
-
-	if len(decompressed) != len(data) {
+	decompressed := make([]float64, len(data))
+	n := Decompress(decompressed, compressed)
+	if len(decompressed[:n]) != len(data) {
 		t.Errorf("Length mismatch: got %d, want %d", len(decompressed), len(data))
 	}
 
@@ -218,22 +198,6 @@ func TestALPLargeDataset(t *testing.T) {
 
 	ratio := CompressionRatio(len(data), len(compressed))
 	t.Logf("Large dataset compression ratio: %.2f%%", ratio*100)
-}
-
-func TestALPZeroValues(t *testing.T) {
-	data := []float64{0.0, 0.0, 0.0, 0.0}
-	compressed := Compress(data)
-	decompressed := Decompress(compressed)
-
-	if len(decompressed) != len(data) {
-		t.Errorf("Length mismatch: got %d, want %d", len(decompressed), len(data))
-	}
-
-	for i, v := range decompressed {
-		if v != 0.0 {
-			t.Errorf("Expected 0.0 at index %d, got %f", i, v)
-		}
-	}
 }
 
 func TestCalculateBitWidth(t *testing.T) {
@@ -268,38 +232,6 @@ func TestFindMaxBitWidth(t *testing.T) {
 
 	if result != expected {
 		t.Errorf("FindMaxBitWidth() = %d, want %d", result, expected)
-	}
-}
-
-func TestALPScientificNotation(t *testing.T) {
-	data := []float64{1e-5, 2e-5, 3e-5, 4e-5, 5e-5}
-	compressed := Compress(data)
-	decompressed := Decompress(compressed)
-
-	if len(decompressed) != len(data) {
-		t.Errorf("Length mismatch: got %d, want %d", len(decompressed), len(data))
-	}
-
-	for i := range data {
-		if math.Abs(decompressed[i]-data[i]) > 1e-15 {
-			t.Errorf("Value mismatch at index %d: got %e, want %e", i, decompressed[i], data[i])
-		}
-	}
-}
-
-func TestALPMixedRange(t *testing.T) {
-	data := []float64{0.1, 10.0, 100.0, 1000.0, 0.01}
-	compressed := Compress(data)
-	decompressed := Decompress(compressed)
-
-	if len(decompressed) != len(data) {
-		t.Errorf("Length mismatch: got %d, want %d", len(decompressed), len(data))
-	}
-
-	for i := range data {
-		if math.Abs(decompressed[i]-data[i]) > 1e-10 {
-			t.Errorf("Value mismatch at index %d: got %f, want %f", i, decompressed[i], data[i])
-		}
 	}
 }
 

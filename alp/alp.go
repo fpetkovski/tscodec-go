@@ -193,9 +193,9 @@ func (ac *ALPCompressor) Compress(data []float64) []byte {
 }
 
 // Decompress decompresses ALP-encoded data
-func (ac *ALPCompressor) Decompress(data []byte) []float64 {
+func (ac *ALPCompressor) Decompress(dst []float64, data []byte) int {
 	if len(data) == 0 {
-		return []float64{}
+		return 0
 	}
 
 	// Decode metadata
@@ -203,17 +203,16 @@ func (ac *ALPCompressor) Decompress(data []byte) []float64 {
 
 	switch metadata.EncodingType {
 	case EncodingNone:
-		return []float64{}
+		return int(metadata.Count)
 
 	case EncodingConstant:
-		result := make([]float64, metadata.Count)
-		for i := range result {
-			result[i] = metadata.ConstantValue
+		for i := range dst {
+			dst[i] = metadata.ConstantValue
 		}
-		return result
+		return int(metadata.Count)
 
 	case EncodingALP:
-		result := make([]float64, metadata.Count)
+		result := dst[:metadata.Count]
 		dst := unsafecast.Slice[int64](result)
 		bitpack.UnpackInt64(dst, data[MetadataSize:], uint(metadata.BitWidth))
 
@@ -228,10 +227,10 @@ func (ac *ALPCompressor) Decompress(data []byte) []float64 {
 			result[i] = float64(v) / factor
 		}
 
-		return result
+		return int(metadata.Count)
 
 	default:
-		return []float64{}
+		return 0
 	}
 }
 
@@ -318,9 +317,9 @@ func Compress(data []float64) []byte {
 }
 
 // Decompress is a convenience function to decompress ALP-encoded data
-func Decompress(data []byte) []float64 {
+func Decompress(dst []float64, data []byte) int {
 	compressor := NewALPCompressor()
-	return compressor.Decompress(data)
+	return compressor.Decompress(dst, data)
 }
 
 // CompressionRatio calculates the compression ratio

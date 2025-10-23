@@ -1,7 +1,6 @@
 package benchmarks
 
 import (
-	"fmt"
 	"math/rand/v2"
 	"testing"
 	"time"
@@ -59,7 +58,7 @@ func BenchmarkEncoding(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			tsc, _, _ := dod.Encode(nil, ts)
+			tsc := dod.Encode(nil, ts)
 			fsc := alp.Compress(vs)
 
 			b.ReportMetric(float64(len(tsc)+len(fsc)), "compressed_bytes")
@@ -68,12 +67,16 @@ func BenchmarkEncoding(b *testing.B) {
 	b.Run("alp-decode", func(b *testing.B) {
 		b.ReportAllocs()
 
-		tsc, bitWidth, minVal := dod.Encode(nil, ts)
+		tsc := dod.Encode(nil, ts)
 		fsc := alp.Compress(vs)
-		fmt.Println(len(tsc), len(fsc))
+
+		var (
+			ints   dod.Block
+			floats = make([]float64, numSamples)
+		)
 		for b.Loop() {
-			dod.Decode(make([]int64, len(ts)), tsc, bitWidth, minVal)
-			alp.Decompress(fsc)
+			dod.Decode(ints[:], tsc)
+			_ = alp.Decompress(floats, fsc)
 		}
 	})
 }
