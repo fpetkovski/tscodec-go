@@ -149,10 +149,8 @@ func (ac *ALPCompressor) Compress(data []float64) []byte {
 
 	// Apply frame-of-reference encoding
 	minValue := intValues[0]
-	maxValue := intValues[0]
 	for _, v := range intValues {
 		minValue = min(minValue, v)
-		maxValue = max(maxValue, v)
 	}
 
 	// Apply frame-of-reference to create adjusted int64 values

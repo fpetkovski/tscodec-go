@@ -116,3 +116,14 @@ func BenchmarkUnpackInt64(b *testing.B) {
 		})
 	}
 }
+
+func TestPackInt64Negative(t *testing.T) {
+	vals := []int64{10, -5, 20, -4}
+	buf := [8*blockSize + bitpack.PaddingInt64]byte{}
+	bitpack.PackInt64(buf[:], vals[:], 6)
+
+	unpacked := make([]int64, len(vals))
+	bitpack.UnpackInt64(unpacked, buf[:], 6)
+
+	fmt.Println(unpacked)
+}

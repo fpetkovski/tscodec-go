@@ -54,9 +54,7 @@ func packInt64(dst []byte, src []int64, bitWidth uint) {
 	n := ByteCount(uint(len(src))*bitWidth) + PaddingInt64
 	b := dst[:n]
 
-	for i := range b {
-		b[i] = 0
-	}
+	clear(b)
 
 	bitMask := uint64(1<<bitWidth) - 1
 	bitOffset := uint(0)

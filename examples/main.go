@@ -5,7 +5,7 @@ import (
 	"math"
 	"math/rand"
 
-	"alp-go"
+	"alp-go/alp"
 )
 
 func main() {
