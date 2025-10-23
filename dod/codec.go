@@ -27,8 +27,15 @@ type Header struct {
 }
 
 func Encode(dst []byte, src []int64) []byte {
-	if len(src) == 0 {
+	switch len(src) {
+	case 0:
 		return dst[:0]
+	case 1:
+		size := HeaderSize + Int64SizeBytes
+		dst = make([]byte, size)
+		dst[9] = uint8(len(src))
+		binary.LittleEndian.PutUint64(dst[HeaderSize:size], uint64(src[0]))
+		return dst[:size]
 	}
 
 	d0 := int64(0)
@@ -80,6 +87,9 @@ func Decode(dst []int64, src []byte) uint8 {
 	}
 
 	dst[0] = int64(binary.LittleEndian.Uint64(src[HeaderSize : HeaderSize+Int64SizeBytes]))
+	if header.NumValues == 1 {
+		return 1
+	}
 	bitpack.UnpackInt64(dst[1:header.NumValues], src[HeaderSize+Int64SizeBytes:], uint(header.BitWidth))
 	for i := 1; i < int(header.NumValues); i++ {
 		dst[i] = dst[i] + header.MinVal

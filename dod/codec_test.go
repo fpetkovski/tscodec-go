@@ -1,6 +1,8 @@
 package dod
 
 import (
+	"fmt"
+	"math/rand"
 	"slices"
 	"testing"
 )
@@ -9,27 +11,26 @@ func TestEncode(t *testing.T) {
 	tests := []struct {
 		name string
 		src  []int64
-		want []byte
 	}{
 		{
 			name: "empty source",
 			src:  nil,
-			want: nil,
+		},
+		{
+			name: "single value",
+			src:  []int64{3},
 		},
 		{
 			name: "small input",
 			src:  []int64{10, 15, 22, 31, 55},
-			want: nil,
 		},
 		{
 			name: "large numbers",
 			src:  []int64{100000, 100001, 100002, 100003},
-			want: nil,
 		},
 		{
 			name: "irregular increments",
 			src:  []int64{99968, 100001, 100002, 100003, 100004},
-			want: nil,
 		},
 	}
 	for _, tc := range tests {
@@ -47,13 +48,17 @@ func TestEncode(t *testing.T) {
 
 func FuzzEncodeDecode(f *testing.F) {
 	// Add seed corpus
-	f.Add(int64(10), int64(15), int64(22), int64(31), int64(55))
-	f.Add(int64(100000), int64(100001), int64(100002), int64(100003), int64(100004))
-	f.Add(int64(0), int64(0), int64(0), int64(0), int64(0))
-	f.Add(int64(-100), int64(-50), int64(0), int64(50), int64(100))
+	f.Add(uint8(10), int64(6))
+	f.Add(uint8(20), int64(0))
+	f.Add(uint8(30), int64(-300))
 
-	f.Fuzz(func(t *testing.T, v1, v2, v3, v4, v5 int64) {
-		src := []int64{v1, v2, v3, v4, v5}
+	f.Fuzz(func(t *testing.T, size uint8, seed int64) {
+		src := make([]int64, size)
+		gen := rand.New(rand.NewSource(seed))
+		for i := range src {
+			src[i] = gen.Int63()
+		}
+		fmt.Println(src)
 
 		// Encode.
 		dst := Encode(nil, src)
