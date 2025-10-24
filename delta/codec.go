@@ -1,10 +1,11 @@
-package dod
+package delta
 
 import (
 	"alp-go/alp"
 	"alp-go/bitpack"
 	"encoding/binary"
 	"math"
+	"slices"
 )
 
 const (
@@ -26,28 +27,31 @@ type Header struct {
 	MinVal    int64
 }
 
-func Encode(dst []byte, src []int64) []byte {
+func Encode(src []int64) []byte {
+	return EncodeInt64(nil, src)
+}
+
+func EncodeInt64(dst []byte, src []int64) []byte {
 	switch len(src) {
 	case 0:
-		return dst[:0]
+		return dst
 	case 1:
+		offset := len(dst)
 		size := HeaderSize + Int64SizeBytes
-		dst = make([]byte, size)
-		dst[9] = uint8(len(src))
-		binary.LittleEndian.PutUint64(dst[HeaderSize:size], uint64(src[0]))
-		return dst[:size]
+		dst = slices.Grow(dst, size)[:len(dst)+size]
+		out := dst[offset:]
+		out[9] = uint8(len(src))
+		binary.LittleEndian.PutUint64(out[HeaderSize:size], uint64(src[0]))
+		return dst
 	}
 
-	d0 := int64(0)
 	minVal := int64(math.MaxInt64)
 	encoded := make([]int64, len(src))
 	encoded[0] = src[0]
 	for i := 1; i < len(src); i++ {
-		d1 := src[i] - src[i-1]
-		dod1 := d1 - d0
-		d0 = d1
-		encoded[i] = dod1
-		minVal = min(minVal, dod1)
+		delta := src[i] - src[i-1]
+		encoded[i] = delta
+		minVal = min(minVal, delta)
 	}
 	for i := 1; i < len(encoded); i++ {
 		encoded[i] = encoded[i] - minVal
@@ -61,18 +65,20 @@ func Encode(dst []byte, src []int64) []byte {
 
 	packedSize := bitpack.ByteCount(uint((len(encoded) - 1) * bitWidth))
 	totalSize := packedSize + Int64SizeBytes + HeaderSize + bitpack.PaddingInt64
-	packedData := make([]byte, totalSize)
+	offset := len(dst)
+	dst = slices.Grow(dst, totalSize)[:len(dst)+totalSize]
+	out := dst[offset:]
 
 	// Encode header.
-	binary.LittleEndian.PutUint64(packedData[:8], uint64(minVal))
-	packedData[8] = uint8(bitWidth)
-	packedData[9] = uint8(len(src))
+	binary.LittleEndian.PutUint64(out[:8], uint64(minVal))
+	out[8] = uint8(bitWidth)
+	out[9] = uint8(len(src))
 
 	// Encode the first value as is and bitpack the rest.
-	binary.LittleEndian.PutUint64(packedData[HeaderSize:HeaderSize+Int64SizeBytes], uint64(encoded[0]))
-	bitpack.PackInt64(packedData[HeaderSize+Int64SizeBytes:], encoded[1:], uint(bitWidth))
+	binary.LittleEndian.PutUint64(out[HeaderSize:HeaderSize+Int64SizeBytes], uint64(encoded[0]))
+	bitpack.PackInt64(out[HeaderSize+Int64SizeBytes:], encoded[1:], uint(bitWidth))
 
-	return packedData
+	return dst
 }
 
 func Decode(dst []int64, src []byte) uint8 {
@@ -95,11 +101,8 @@ func Decode(dst []int64, src []byte) uint8 {
 		dst[i] = dst[i] + header.MinVal
 	}
 
-	d0 := int64(0)
 	for i := 1; i < int(header.NumValues); i++ {
-		d1 := dst[i] + d0
-		dst[i] = d1 + dst[i-1]
-		d0 = d1
+		dst[i] = dst[i] + dst[i-1]
 	}
 	return header.NumValues
 }

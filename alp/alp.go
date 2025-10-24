@@ -162,7 +162,7 @@ func (ac *ALPCompressor) Compress(data []float64) []byte {
 	// Find bit width for signed integers
 	maxBits := 0
 	for _, v := range forValues {
-		bits := CalculateBitWidthSigned(v)
+		bits := CalculateBitWidth(uint64(v))
 		if bits > maxBits {
 			maxBits = bits
 		}
