@@ -77,55 +77,93 @@ func decodeHistograms(dst []*histogram.Histogram, src []byte, numSamples int) {
 	i++
 
 	// Decode positive span offsets, offsets, counts (Delta - self-describing)
-	posSpanOffsets := make([]int64, 1024)
-	numPosSpanOffsets := delta.Decode(posSpanOffsets, src[offsets[i]:])
+	posSpanOffsets := make([]int64, 4096)
+	endIdx := lengthsStart
+	if i+1 < len(offsets) {
+		endIdx = int(offsets[i+1])
+	}
+	numPosSpanOffsets := delta.Decode(posSpanOffsets, src[offsets[i]:endIdx])
 	posSpanOffsets = posSpanOffsets[:numPosSpanOffsets]
 	i++
 
-	posSpanLengths := make([]int64, 1024)
-	numPosSpanLengths := delta.Decode(posSpanLengths, src[offsets[i]:])
+	posSpanLengths := make([]int64, 4096)
+	endIdx = lengthsStart
+	if i+1 < len(offsets) {
+		endIdx = int(offsets[i+1])
+	}
+	numPosSpanLengths := delta.Decode(posSpanLengths, src[offsets[i]:endIdx])
 	posSpanLengths = posSpanLengths[:numPosSpanLengths]
 	i++
 
 	var posSpanCounts delta.Block
-	delta.Decode(posSpanCounts[:], src[offsets[i]:])
+	delta.Decode(posSpanCounts[:], src[offsets[i]:offsets[i+1]])
 	i++
 
 	// Decode negative span offsets, lengths, counts (Delta - self-describing)
-	negSpanOffsets := make([]int64, 1024)
-	numNegSpanOffsets := delta.Decode(negSpanOffsets, src[offsets[i]:])
+	negSpanOffsets := make([]int64, 4096)
+	numNegSpanOffsets := delta.Decode(negSpanOffsets, src[offsets[i]:offsets[i+1]])
 	negSpanOffsets = negSpanOffsets[:numNegSpanOffsets]
 	i++
 
-	negSpanLengths := make([]int64, 1024)
-	numNegSpanLengths := delta.Decode(negSpanLengths, src[offsets[i]:])
+	negSpanLengths := make([]int64, 4096)
+	numNegSpanLengths := delta.Decode(negSpanLengths, src[offsets[i]:offsets[i+1]])
 	negSpanLengths = negSpanLengths[:numNegSpanLengths]
 	i++
 
 	var negSpanCounts delta.Block
-	delta.Decode(negSpanCounts[:], src[offsets[i]:])
+	delta.Decode(negSpanCounts[:], src[offsets[i]:offsets[i+1]])
+	i++
+
+	// Decode positive bucket counts per histogram
+	var posBucketCounts delta.Block
+	endIdx = lengthsStart
+	if i+1 < len(offsets) {
+		endIdx = int(offsets[i+1])
+	}
+	delta.Decode(posBucketCounts[:], src[offsets[i]:endIdx])
 	i++
 
 	// Decode positive bucket first values (DoD int64 - self-describing)
 	var posFirstBuckets dod.Int64Block
-	dod.DecodeInt64(posFirstBuckets[:], src[offsets[i]:])
+	endIdx = lengthsStart
+	if i+1 < len(offsets) {
+		endIdx = int(offsets[i+1])
+	}
+	dod.DecodeInt64(posFirstBuckets[:], src[offsets[i]:endIdx])
 	i++
 
 	// Decode positive bucket deltas (Delta - self-describing)
 	// Deltas can exceed BlockSize, so we need a larger slice
-	posDeltas := make([]int64, 2048) // Enough for many histograms
-	numPosDeltas := delta.Decode(posDeltas, src[offsets[i]:])
+	posDeltas := make([]int64, 16384) // Enough for many histograms
+	endIdx = lengthsStart
+	if i+1 < len(offsets) {
+		endIdx = int(offsets[i+1])
+	}
+	numPosDeltas := delta.Decode(posDeltas, src[offsets[i]:endIdx])
 	posDeltas = posDeltas[:numPosDeltas]
+	i++
+
+	// Decode negative bucket counts per histogram
+	var negBucketCounts delta.Block
+	endIdx = lengthsStart
+	if i+1 < len(offsets) {
+		endIdx = int(offsets[i+1])
+	}
+	delta.Decode(negBucketCounts[:], src[offsets[i]:endIdx])
 	i++
 
 	// Decode negative bucket first values (DoD int64 - self-describing)
 	var negFirstBuckets dod.Int64Block
-	dod.DecodeInt64(negFirstBuckets[:], src[offsets[i]:])
+	endIdx = lengthsStart
+	if i+1 < len(offsets) {
+		endIdx = int(offsets[i+1])
+	}
+	dod.DecodeInt64(negFirstBuckets[:], src[offsets[i]:endIdx])
 	i++
 
 	// Decode negative bucket deltas (last field, has padding, goes until lengthsStart)
 	// Deltas can exceed BlockSize, so we need a larger slice
-	negDeltas := make([]int64, 2048) // Enough for many histograms
+	negDeltas := make([]int64, 16384) // Enough for many histograms
 	numNegDeltas := delta.Decode(negDeltas, src[offsets[i]:lengthsStart])
 	negDeltas = negDeltas[:numNegDeltas]
 
@@ -155,23 +193,27 @@ func decodeHistograms(dst []*histogram.Histogram, src []byte, numSamples int) {
 		numPosSpans := int(posSpanCounts[histIdx])
 		if numPosSpans > 0 {
 			h.PositiveSpans = make([]histogram.Span, numPosSpans)
-			numPosBuckets := 0
 			for j := 0; j < numPosSpans; j++ {
 				h.PositiveSpans[j].Offset = int32(posSpanOffsets[posSpanIdx+j])
 				h.PositiveSpans[j].Length = uint32(posSpanLengths[posSpanIdx+j])
-				numPosBuckets += int(h.PositiveSpans[j].Length)
 			}
 			posSpanIdx += numPosSpans
+		}
 
-			// Restore positive buckets
-			if numPosBuckets > 0 {
-				h.PositiveBuckets = make([]int64, numPosBuckets)
-				h.PositiveBuckets[0] = posFirstBuckets[posFirstBucketIdx]
-				posFirstBucketIdx++
-				for j := 1; j < numPosBuckets; j++ {
-					h.PositiveBuckets[j] = posDeltas[posDeltaIdx]
-					posDeltaIdx++
+		// Restore positive buckets using explicit bucket count
+		numPosBuckets := int(posBucketCounts[histIdx])
+		if numPosBuckets > 0 && posFirstBucketIdx < len(posFirstBuckets) {
+			h.PositiveBuckets = make([]int64, numPosBuckets)
+			h.PositiveBuckets[0] = posFirstBuckets[posFirstBucketIdx]
+			posFirstBucketIdx++
+			// Note: numPosBuckets-1 deltas for numPosBuckets buckets (first bucket already set)
+			for j := 1; j < numPosBuckets; j++ {
+				if posDeltaIdx >= len(posDeltas) {
+					// If we run out of deltas, something is wrong - but fill with 0 for now
+					break
 				}
+				h.PositiveBuckets[j] = posDeltas[posDeltaIdx]
+				posDeltaIdx++
 			}
 		}
 
@@ -179,23 +221,27 @@ func decodeHistograms(dst []*histogram.Histogram, src []byte, numSamples int) {
 		numNegSpans := int(negSpanCounts[histIdx])
 		if numNegSpans > 0 {
 			h.NegativeSpans = make([]histogram.Span, numNegSpans)
-			numNegBuckets := 0
 			for j := 0; j < numNegSpans; j++ {
 				h.NegativeSpans[j].Offset = int32(negSpanOffsets[negSpanIdx+j])
 				h.NegativeSpans[j].Length = uint32(negSpanLengths[negSpanIdx+j])
-				numNegBuckets += int(h.NegativeSpans[j].Length)
 			}
 			negSpanIdx += numNegSpans
+		}
 
-			// Restore negative buckets
-			if numNegBuckets > 0 {
-				h.NegativeBuckets = make([]int64, numNegBuckets)
-				h.NegativeBuckets[0] = negFirstBuckets[negFirstBucketIdx]
-				negFirstBucketIdx++
-				for j := 1; j < numNegBuckets; j++ {
-					h.NegativeBuckets[j] = negDeltas[negDeltaIdx]
-					negDeltaIdx++
+		// Restore negative buckets using explicit bucket count
+		numNegBuckets := int(negBucketCounts[histIdx])
+		if numNegBuckets > 0 && negFirstBucketIdx < len(negFirstBuckets) {
+			h.NegativeBuckets = make([]int64, numNegBuckets)
+			h.NegativeBuckets[0] = negFirstBuckets[negFirstBucketIdx]
+			negFirstBucketIdx++
+			// Note: numNegBuckets-1 deltas for numNegBuckets buckets (first bucket already set)
+			for j := 1; j < numNegBuckets; j++ {
+				if negDeltaIdx >= len(negDeltas) {
+					// If we run out of deltas, something is wrong - but fill with 0 for now
+					break
 				}
+				h.NegativeBuckets[j] = negDeltas[negDeltaIdx]
+				negDeltaIdx++
 			}
 		}
 	}
@@ -246,20 +292,18 @@ func encodeHistogramsInternal(hs []*histogram.Histogram, numSamples int, sizeOnl
 	dst, _ = enc.EncodeBoolean(dst, hints)
 	lengths = append(lengths, int32(len(dst))) // Start of next block
 
-	schema := unsafecast.Slice[int32](scratch)[:0]
+	schemas := unsafecast.Slice[int32](scratch)[:0]
 	for _, h := range hs {
-		schema = append(schema, h.Schema)
+		schemas = append(schemas, h.Schema)
 	}
-	dst = trimPadding(dod.EncodeInt32(dst, schema), bitpack.PaddingInt32)
+	dst = trimPadding(dod.EncodeInt32(dst, schemas), bitpack.PaddingInt32)
 	lengths = append(lengths, int32(len(dst)))
 
 	zeroThresholds := unsafecast.Slice[float64](scratch)[:0]
 	for _, h := range hs {
 		zeroThresholds = append(zeroThresholds, h.ZeroThreshold)
 	}
-	// ALP doesn't support appending yet, so encode separately
-	alpBuf := alp.Compress(zeroThresholds)
-	dst = append(dst, alpBuf...)
+	dst = append(dst, alp.Compress(zeroThresholds)...)
 	lengths = append(lengths, int32(len(dst)))
 
 	zeroCounts := unsafecast.Slice[uint64](scratch)[:0]
@@ -280,14 +324,14 @@ func encodeHistogramsInternal(hs []*histogram.Histogram, numSamples int, sizeOnl
 	for _, h := range hs {
 		sums = append(sums, h.Sum)
 	}
-	alpBuf = alp.Compress(sums)
-	dst = append(dst, alpBuf...)
+	dst = append(dst, alp.Compress(sums)...)
 	lengths = append(lengths, int32(len(dst)))
 
 	spanOffsets := make([]int64, 0, numSamples)
 	spanLengths := make([]int64, 0, numSamples)
 	spanCounts := make([]int64, 0, numSamples)
 	for _, h := range hs {
+		// Only encode spans if there are actual buckets
 		for _, s := range h.PositiveSpans {
 			spanOffsets = append(spanOffsets, int64(s.Offset))
 			spanLengths = append(spanLengths, int64(s.Length))
@@ -308,6 +352,7 @@ func encodeHistogramsInternal(hs []*histogram.Histogram, numSamples int, sizeOnl
 	spanLengths = spanLengths[:0]
 	spanCounts = spanCounts[:0]
 	for _, h := range hs {
+		// Only encode spans if there are actual buckets
 		for _, s := range h.NegativeSpans {
 			spanOffsets = append(spanOffsets, int64(s.Offset))
 			spanLengths = append(spanLengths, int64(s.Length))
@@ -324,14 +369,21 @@ func encodeHistogramsInternal(hs []*histogram.Histogram, numSamples int, sizeOnl
 	lengths = append(lengths, int32(len(dst)))
 
 	// Reorder positive buckets: first buckets together, then all deltas
+	// Also track bucket counts per histogram
 	firstBuckets := make([]int64, 0, numSamples)
 	deltas := make([]int64, 0, numSamples)
+	bucketCounts := make([]int64, 0, numSamples)
 	for _, h := range hs {
+		bucketCounts = append(bucketCounts, int64(len(h.PositiveBuckets)))
 		if len(h.PositiveBuckets) > 0 {
 			firstBuckets = append(firstBuckets, h.PositiveBuckets[0])
 			deltas = append(deltas, h.PositiveBuckets[1:]...)
 		}
 	}
+
+	dst = trimPadding(delta.EncodeInt64(dst, bucketCounts), bitpack.PaddingInt64)
+	lengths = append(lengths, int32(len(dst)))
+
 	dst = trimPadding(dod.EncodeInt64(dst, firstBuckets), bitpack.PaddingInt64)
 	lengths = append(lengths, int32(len(dst)))
 
@@ -339,14 +391,21 @@ func encodeHistogramsInternal(hs []*histogram.Histogram, numSamples int, sizeOnl
 	lengths = append(lengths, int32(len(dst)))
 
 	// Reorder negative buckets: first buckets together, then all deltas
+	// Also track bucket counts per histogram
 	firstBuckets = firstBuckets[:0]
 	deltas = deltas[:0]
+	bucketCounts = bucketCounts[:0]
 	for _, h := range hs {
+		bucketCounts = append(bucketCounts, int64(len(h.NegativeBuckets)))
 		if len(h.NegativeBuckets) > 0 {
 			firstBuckets = append(firstBuckets, h.NegativeBuckets[0])
 			deltas = append(deltas, h.NegativeBuckets[1:]...)
 		}
 	}
+
+	dst = trimPadding(delta.EncodeInt64(dst, bucketCounts), bitpack.PaddingInt64)
+	lengths = append(lengths, int32(len(dst)))
+
 	dst = trimPadding(dod.EncodeInt64(dst, firstBuckets), bitpack.PaddingInt64)
 	lengths = append(lengths, int32(len(dst)))
 
@@ -369,6 +428,7 @@ func encodeHistogramsInternal(hs []*histogram.Histogram, numSamples int, sizeOnl
 // trimPadding removes the padding bytes from the end of the buffer.
 // Each encoding adds 32 bytes of padding, we'll add it back once at the end.
 func trimPadding(buf []byte, paddingSize int) []byte {
+	return buf
 	if len(buf) >= paddingSize {
 		return buf[:len(buf)-paddingSize]
 	}

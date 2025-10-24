@@ -13,17 +13,17 @@ const (
 	Int64SizeBytes = 8
 
 	// BlockSize is the maximum amount of values that can be encoded at once.
-	BlockSize = 255
+	BlockSize = 4096
 )
 
 type Block [BlockSize]int64
 
 // The HeaderSize is the size of the header of the encoded data.
-const HeaderSize = 8 + 1 + 1
+const HeaderSize = 8 + 1 + 2
 
 type Header struct {
 	BitWidth  uint8
-	NumValues uint8
+	NumValues uint16
 	MinVal    int64
 }
 
@@ -40,7 +40,7 @@ func EncodeInt64(dst []byte, src []int64) []byte {
 		size := HeaderSize + Int64SizeBytes
 		dst = slices.Grow(dst, size)[:len(dst)+size]
 		out := dst[offset:]
-		out[9] = uint8(len(src))
+		binary.LittleEndian.PutUint16(out[9:11], uint16(len(src)))
 		binary.LittleEndian.PutUint64(out[HeaderSize:size], uint64(src[0]))
 		return dst
 	}
@@ -72,7 +72,7 @@ func EncodeInt64(dst []byte, src []int64) []byte {
 	// Encode header.
 	binary.LittleEndian.PutUint64(out[:8], uint64(minVal))
 	out[8] = uint8(bitWidth)
-	out[9] = uint8(len(src))
+	binary.LittleEndian.PutUint16(out[9:11], uint16(len(src)))
 
 	// Encode the first value as is and bitpack the rest.
 	binary.LittleEndian.PutUint64(out[HeaderSize:HeaderSize+Int64SizeBytes], uint64(encoded[0]))
@@ -81,7 +81,7 @@ func EncodeInt64(dst []byte, src []int64) []byte {
 	return dst
 }
 
-func Decode(dst []int64, src []byte) uint8 {
+func Decode(dst []int64, src []byte) uint16 {
 	if len(src) == 0 {
 		return 0
 	}
@@ -89,7 +89,7 @@ func Decode(dst []int64, src []byte) uint8 {
 	header := Header{
 		MinVal:    int64(binary.LittleEndian.Uint64(src[:8])),
 		BitWidth:  src[8],
-		NumValues: src[9],
+		NumValues: binary.LittleEndian.Uint16(src[9:11]),
 	}
 
 	dst[0] = int64(binary.LittleEndian.Uint64(src[HeaderSize : HeaderSize+Int64SizeBytes]))
