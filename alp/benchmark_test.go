@@ -25,6 +25,7 @@ func BenchmarkALP(b *testing.B) {
 		dataset[i] = randGen.Float64() * 1000
 	}
 
+	compressed := Compress(nil, dataset)
 	b.Run("CompressionSpeed", func(b *testing.B) {
 		for _, size := range benchmarkSizes {
 			data := dataset[:size]
@@ -32,7 +33,7 @@ func BenchmarkALP(b *testing.B) {
 				b.SetBytes(int64(size * 8))
 				b.ResetTimer()
 				for b.Loop() {
-					_ = Compress(data)
+					_ = Compress(compressed, data)
 				}
 			})
 		}
@@ -40,7 +41,7 @@ func BenchmarkALP(b *testing.B) {
 
 	b.Run("DecompressionSpeed", func(b *testing.B) {
 		for _, size := range benchmarkSizes {
-			compressed := Compress(dataset[:size])
+			compressed := Compress(compressed, dataset[:size])
 			decompressed := make([]float64, size)
 			b.Run(strconv.Itoa(size), func(b *testing.B) {
 				b.SetBytes(int64(size * 8))
@@ -99,14 +100,14 @@ func BenchmarkALP(b *testing.B) {
 				b.SetBytes(int64(size * 8))
 				b.ResetTimer()
 				for b.Loop() {
-					_ = Compress(data)
+					_ = Compress(compressed, data)
 				}
 			})
 		}
 
 		for patternName, generator := range patterns {
 			data := generator()
-			compressed := Compress(data)
+			compressed = Compress(compressed, data)
 			decompressed := make([]float64, size)
 			b.Run("Decompress/"+patternName, func(b *testing.B) {
 				b.SetBytes(int64(size * 8))

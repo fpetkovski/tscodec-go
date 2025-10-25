@@ -115,7 +115,7 @@ func TestALPCompression(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Compress
-			compressed := Compress(tt.data)
+			compressed := Compress(nil, tt.data)
 
 			// Decompress
 			decompressed := make([]float64, len(tt.data))
@@ -148,7 +148,7 @@ func TestALPRandomDataset(t *testing.T) {
 		data[i] = randGen.Float64() * 1e10
 	}
 
-	compressed := Compress(data)
+	compressed := Compress(nil, data)
 	decompressed := make([]float64, len(data))
 	n := Decompress(decompressed, compressed)
 
@@ -182,7 +182,7 @@ func TestALPLargeDataset(t *testing.T) {
 		data[i] = float64(i) * 0.1
 	}
 
-	compressed := Compress(data)
+	compressed := Compress(nil, data)
 	decompressed := make([]float64, len(data))
 	n := Decompress(decompressed, compressed)
 	if len(decompressed[:n]) != len(data) {

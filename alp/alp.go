@@ -39,19 +39,121 @@ type CompressionMetadata struct {
 	ConstantValue float64
 }
 
-// ALPCompressor handles ALP compression of float64 data
-type ALPCompressor struct {
-	exponent int
-	factor   float64
+// Compress compresses an array of float64 values using ALP
+func Compress(dst []byte, data []float64) []byte {
+	if len(data) == 0 {
+		return encodeMetadata(CompressionMetadata{
+			EncodingType: EncodingNone,
+			Count:        0,
+		})
+	}
+
+	// Check for constant values
+	if isConstant(data) {
+		metadata := CompressionMetadata{
+			EncodingType:  EncodingConstant,
+			Count:         int32(len(data)),
+			ConstantValue: data[0],
+		}
+		return encodeMetadata(metadata)
+	}
+
+	// Find best exponent
+	exponent := findBestExponent(data)
+	factor := math.Pow(10, float64(exponent))
+
+	// Convert to integers
+	intValues := encodeToIntegers(data, factor)
+
+	// Apply frame-of-reference encoding
+	minValue := intValues[0]
+	for _, v := range intValues {
+		minValue = min(minValue, v)
+	}
+
+	// Apply frame-of-reference to create adjusted int64 values
+	forValues := make([]int64, len(intValues))
+	for i, v := range intValues {
+		forValues[i] = v - minValue
+	}
+
+	// Find bit width for signed integers
+	maxBits := 0
+	for _, v := range forValues {
+		bits := CalculateBitWidth(uint64(v))
+		if bits > maxBits {
+			maxBits = bits
+		}
+	}
+	bitWidth := maxBits
+
+	// Pack data using signed integer packing
+	packedSize := bitpack.ByteCount(uint(len(forValues)*bitWidth)) + bitpack.PaddingInt64
+	packedData := make([]byte, packedSize)
+	bitpack.PackInt64(packedData, forValues, uint(bitWidth))
+
+	// Create metadata
+	metadata := CompressionMetadata{
+		EncodingType: EncodingALP,
+		Count:        int32(len(data)),
+		Exponent:     int8(exponent),
+		BitWidth:     uint8(bitWidth),
+		FrameOfRef:   minValue,
+	}
+
+	// Combine metadata and data
+	metadataBytes := encodeMetadata(metadata)
+	result := make([]byte, len(metadataBytes)+len(packedData))
+	copy(result, metadataBytes)
+	copy(result[len(metadataBytes):], packedData)
+
+	return result
 }
 
-// NewALPCompressor creates a new ALP compressor
-func NewALPCompressor() *ALPCompressor {
-	return &ALPCompressor{}
+// Decompress decompresses ALP-encoded data
+func Decompress(dst []float64, data []byte) int {
+	if len(data) == 0 {
+		return 0
+	}
+
+	// Decode metadata
+	metadata := DecodeMetadata(data)
+
+	switch metadata.EncodingType {
+	case EncodingNone:
+		return int(metadata.Count)
+
+	case EncodingConstant:
+		for i := range dst {
+			dst[i] = metadata.ConstantValue
+		}
+		return int(metadata.Count)
+
+	case EncodingALP:
+		result := dst[:metadata.Count]
+		dst := unsafecast.Slice[int64](result)
+		bitpack.UnpackInt64(dst, data[MetadataSize:], uint(metadata.BitWidth))
+
+		minValue := metadata.FrameOfRef
+		for i := range dst {
+			dst[i] += minValue
+		}
+
+		// Convert back to float64
+		factor := math.Pow(10, float64(metadata.Exponent))
+		for i, v := range dst {
+			result[i] = float64(v) / factor
+		}
+
+		return int(metadata.Count)
+
+	default:
+		return 0
+	}
 }
 
 // findBestExponent analyzes the data and finds the best exponent for encoding
-func (ac *ALPCompressor) findBestExponent(data []float64) int {
+func findBestExponent(data []float64) int {
 	if len(data) == 0 {
 		return 0
 	}
@@ -112,126 +214,13 @@ func (ac *ALPCompressor) findBestExponent(data []float64) int {
 }
 
 // encodeToIntegers converts float64 values to integers using the factor
-func (ac *ALPCompressor) encodeToIntegers(data []float64) []int64 {
+func encodeToIntegers(data []float64, factor float64) []int64 {
 	result := make([]int64, len(data))
 	for i, v := range data {
-		scaled := v * ac.factor
+		scaled := v * factor
 		result[i] = int64(math.Round(scaled))
 	}
 	return result
-}
-
-// Compress compresses an array of float64 values using ALP
-func (ac *ALPCompressor) Compress(data []float64) []byte {
-	if len(data) == 0 {
-		return encodeMetadata(CompressionMetadata{
-			EncodingType: EncodingNone,
-			Count:        0,
-		})
-	}
-
-	// Check for constant values
-	if isConstant(data) {
-		metadata := CompressionMetadata{
-			EncodingType:  EncodingConstant,
-			Count:         int32(len(data)),
-			ConstantValue: data[0],
-		}
-		return encodeMetadata(metadata)
-	}
-
-	// Find best exponent
-	ac.exponent = ac.findBestExponent(data)
-	ac.factor = math.Pow(10, float64(ac.exponent))
-
-	// Convert to integers
-	intValues := ac.encodeToIntegers(data)
-
-	// Apply frame-of-reference encoding
-	minValue := intValues[0]
-	for _, v := range intValues {
-		minValue = min(minValue, v)
-	}
-
-	// Apply frame-of-reference to create adjusted int64 values
-	forValues := make([]int64, len(intValues))
-	for i, v := range intValues {
-		forValues[i] = v - minValue
-	}
-
-	// Find bit width for signed integers
-	maxBits := 0
-	for _, v := range forValues {
-		bits := CalculateBitWidth(uint64(v))
-		if bits > maxBits {
-			maxBits = bits
-		}
-	}
-	bitWidth := maxBits
-
-	// Pack data using signed integer packing
-	packedSize := bitpack.ByteCount(uint(len(forValues)*bitWidth)) + bitpack.PaddingInt64
-	packedData := make([]byte, packedSize)
-	bitpack.PackInt64(packedData, forValues, uint(bitWidth))
-
-	// Create metadata
-	metadata := CompressionMetadata{
-		EncodingType: EncodingALP,
-		Count:        int32(len(data)),
-		Exponent:     int8(ac.exponent),
-		BitWidth:     uint8(bitWidth),
-		FrameOfRef:   minValue,
-	}
-
-	// Combine metadata and data
-	metadataBytes := encodeMetadata(metadata)
-	result := make([]byte, len(metadataBytes)+len(packedData))
-	copy(result, metadataBytes)
-	copy(result[len(metadataBytes):], packedData)
-
-	return result
-}
-
-// Decompress decompresses ALP-encoded data
-func (ac *ALPCompressor) Decompress(dst []float64, data []byte) int {
-	if len(data) == 0 {
-		return 0
-	}
-
-	// Decode metadata
-	metadata := DecodeMetadata(data)
-
-	switch metadata.EncodingType {
-	case EncodingNone:
-		return int(metadata.Count)
-
-	case EncodingConstant:
-		for i := range dst {
-			dst[i] = metadata.ConstantValue
-		}
-		return int(metadata.Count)
-
-	case EncodingALP:
-		result := dst[:metadata.Count]
-		dst := unsafecast.Slice[int64](result)
-		bitpack.UnpackInt64(dst, data[MetadataSize:], uint(metadata.BitWidth))
-
-		minValue := metadata.FrameOfRef
-		for i := range dst {
-			dst[i] += minValue
-		}
-
-		// Convert back to float64
-		factor := math.Pow(10, float64(metadata.Exponent))
-		for i, v := range dst {
-			result[i] = float64(v) / factor
-		}
-
-		return int(metadata.Count)
-
-	default:
-		return 0
-	}
 }
 
 // DecompressValues decompresses ALP-encoded data
@@ -308,18 +297,6 @@ func DecodeMetadata(data []byte) CompressionMetadata {
 		FrameOfRef:    int64(binary.LittleEndian.Uint64(data[7:15])),
 		ConstantValue: math.Float64frombits(binary.LittleEndian.Uint64(data[15:23])),
 	}
-}
-
-// Compress is a convenience function to compress float64 data
-func Compress(data []float64) []byte {
-	compressor := NewALPCompressor()
-	return compressor.Compress(data)
-}
-
-// Decompress is a convenience function to decompress ALP-encoded data
-func Decompress(dst []float64, data []byte) int {
-	compressor := NewALPCompressor()
-	return compressor.Decompress(dst, data)
 }
 
 // CompressionRatio calculates the compression ratio
