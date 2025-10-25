@@ -1,4 +1,4 @@
-module alp-go
+module github.com/fpetkovski/tscodec-go
 
 go 1.25.1
 

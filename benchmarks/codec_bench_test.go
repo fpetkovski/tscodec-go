@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"alp-go/alp"
-	"alp-go/dod"
+	"github.com/fpetkovski/tscodec-go/alp"
+	"github.com/fpetkovski/tscodec-go/dod"
 
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
 	"github.com/stretchr/testify/require"

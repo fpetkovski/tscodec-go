@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"alp-go/bitpack"
+	"github.com/fpetkovski/tscodec-go/bitpack"
 )
 
 const (

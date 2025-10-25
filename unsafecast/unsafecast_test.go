@@ -3,7 +3,7 @@ package unsafecast_test
 import (
 	"testing"
 
-	"alp-go/unsafecast"
+	"github.com/fpetkovski/tscodec-go/unsafecast"
 
 	"golang.org/x/sys/cpu"
 )

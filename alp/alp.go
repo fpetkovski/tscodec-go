@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"math"
 
-	"alp-go/bitpack"
-	"alp-go/unsafecast"
+	"github.com/fpetkovski/tscodec-go/bitpack"
+	"github.com/fpetkovski/tscodec-go/unsafecast"
 )
 
 const (

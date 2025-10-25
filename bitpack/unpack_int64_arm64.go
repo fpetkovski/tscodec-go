@@ -3,7 +3,7 @@
 package bitpack
 
 import (
-	"alp-go/unsafecast"
+	"github.com/fpetkovski/tscodec-go/unsafecast"
 )
 
 //go:noescape

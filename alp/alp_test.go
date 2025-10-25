@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"alp-go/bitpack"
+	"github.com/fpetkovski/tscodec-go/bitpack"
 )
 
 func TestBitPacking(t *testing.T) {

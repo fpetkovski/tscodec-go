@@ -1,11 +1,11 @@
 package benchmarks
 
 import (
-	"alp-go/alp"
-	"alp-go/bitpack"
-	"alp-go/delta"
-	"alp-go/dod"
-	"alp-go/unsafecast"
+	"github.com/fpetkovski/tscodec-go/alp"
+	"github.com/fpetkovski/tscodec-go/bitpack"
+	"github.com/fpetkovski/tscodec-go/delta"
+	"github.com/fpetkovski/tscodec-go/dod"
+	"github.com/fpetkovski/tscodec-go/unsafecast"
 	"encoding/binary"
 	"github.com/parquet-go/parquet-go/encoding/rle"
 	"github.com/prometheus/prometheus/model/histogram"

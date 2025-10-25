@@ -1,8 +1,8 @@
 package delta
 
 import (
-	"alp-go/alp"
-	"alp-go/bitpack"
+	"github.com/fpetkovski/tscodec-go/alp"
+	"github.com/fpetkovski/tscodec-go/bitpack"
 	"encoding/binary"
 	"math"
 	"slices"
