@@ -54,7 +54,7 @@ func TestEncode(t *testing.T) {
 				}
 				encoded := EncodeUInt64(nil, vals)
 
-				var decoded Uint64BLock
+				var decoded Uint64Block
 				n := DecodeUInt64(decoded[:], encoded)
 				if !slices.Equal(vals, decoded[:n]) {
 					t.Fatalf("Slices are not equal: got: [%v] want: [%v]", decoded, tc.src)

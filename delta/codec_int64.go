@@ -33,7 +33,7 @@ func EncodeInt64(dst []byte, src []int64) []byte {
 		return dst
 	case 1:
 		dst = slices.Grow(dst, Int64HeaderSize)[:Int64HeaderSize]
-		encodeHeader(dst, 1, src[0], 0)
+		EncodeInt64Header(dst, 1, src[0], 0)
 		return dst
 	}
 
@@ -59,7 +59,7 @@ func EncodeInt64(dst []byte, src []int64) []byte {
 	totalSize := packedSize + Int64SizeBytes + Int64HeaderSize + bitpack.PaddingInt64
 	dst = slices.Grow(dst, totalSize)[:totalSize]
 
-	encodeHeader(dst, uint16(len(src)), minVal, uint8(bitWidth))
+	EncodeInt64Header(dst, uint16(len(src)), minVal, uint8(bitWidth))
 
 	// Encode the first value as is and bitpack the rest.
 	binary.LittleEndian.PutUint64(dst[Int64HeaderSize:Int64HeaderSize+Int64SizeBytes], uint64(encoded[0]))
@@ -73,7 +73,7 @@ func DecodeInt64(dst []int64, src []byte) uint16 {
 		return 0
 	}
 
-	header := decodeHeader(src)
+	header := DecodeInt64Header(src)
 
 	if header.NumValues == 1 {
 		dst[0] = header.MinVal
@@ -81,22 +81,37 @@ func DecodeInt64(dst []int64, src []byte) uint16 {
 	}
 	dst[0] = int64(binary.LittleEndian.Uint64(src[Int64HeaderSize : Int64HeaderSize+Int64SizeBytes]))
 	bitpack.UnpackInt64(dst[1:header.NumValues], src[Int64HeaderSize+Int64SizeBytes:], uint(header.BitWidth))
-	for i := 1; i < int(header.NumValues); i++ {
-		dst[i] = dst[i] + header.MinVal
+
+	numVals := int(header.NumValues)
+	// Bounds check hint.
+	_ = dst[numVals-1]
+	i := 1
+	prev := dst[0]
+	for ; i+3 < numVals; i += 4 {
+		dst[i] = dst[i] + header.MinVal + prev
+		prev = dst[i]
+		dst[i+1] = dst[i+1] + header.MinVal + prev
+		prev = dst[i+1]
+		dst[i+2] = dst[i+2] + header.MinVal + prev
+		prev = dst[i+2]
+		dst[i+3] = dst[i+3] + header.MinVal + prev
+		prev = dst[i+3]
 	}
-	for i := 1; i < int(header.NumValues); i++ {
-		dst[i] = dst[i] + dst[i-1]
+	prev = dst[i-1]
+	for ; i < numVals; i++ {
+		dst[i] = dst[i] + header.MinVal + prev
+		prev = dst[i]
 	}
 	return header.NumValues
 }
 
-func encodeHeader(dst []byte, numVals uint16, minVal int64, bitWidth uint8) {
+func EncodeInt64Header(dst []byte, numVals uint16, minVal int64, bitWidth uint8) {
 	binary.LittleEndian.PutUint64(dst, uint64(minVal))
 	binary.LittleEndian.PutUint16(dst[Int64SizeBytes:], numVals)
 	dst[Int64SizeBytes+2] = bitWidth
 }
 
-func decodeHeader(dst []byte) Int64Header {
+func DecodeInt64Header(dst []byte) Int64Header {
 	return Int64Header{
 		MinVal:    int64(binary.LittleEndian.Uint64(dst)),
 		NumValues: binary.LittleEndian.Uint16(dst[Int64SizeBytes:]),

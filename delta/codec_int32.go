@@ -21,7 +21,7 @@ func EncodeInt32(dst []byte, src []int32) []byte {
 		return dst
 	case 1:
 		dst = slices.Grow(dst, Int64HeaderSize)[:Int64HeaderSize]
-		encodeHeader(dst, 1, int64(src[0]), 0)
+		EncodeInt64Header(dst, 1, int64(src[0]), 0)
 		return dst
 	}
 
@@ -47,7 +47,7 @@ func EncodeInt32(dst []byte, src []int32) []byte {
 	totalSize := packedSize + Int64SizeBytes + Int64HeaderSize + bitpack.PaddingInt64
 	dst = slices.Grow(dst, totalSize)[:totalSize]
 
-	encodeHeader(dst, uint16(len(src)), int64(minVal), uint8(bitWidth))
+	EncodeInt64Header(dst, uint16(len(src)), int64(minVal), uint8(bitWidth))
 
 	// Encode the first value as is and bitpack the rest.
 	binary.LittleEndian.PutUint64(dst[Int64HeaderSize:Int64HeaderSize+Int64SizeBytes], uint64(encoded[0]))
@@ -61,7 +61,7 @@ func DecodeInt32(dst []int32, src []byte) uint16 {
 		return 0
 	}
 
-	header := decodeHeader(src)
+	header := DecodeInt64Header(src)
 
 	if header.NumValues == 1 {
 		dst[0] = int32(header.MinVal)
@@ -69,12 +69,27 @@ func DecodeInt32(dst []int32, src []byte) uint16 {
 	}
 	dst[0] = int32(binary.LittleEndian.Uint32(src[Int64HeaderSize : Int64HeaderSize+Int64SizeBytes]))
 	bitpack.UnpackInt32(dst[1:header.NumValues], src[Int64HeaderSize+Int64SizeBytes:], uint(header.BitWidth))
+
+	// Combine adding minVal and computing prefix sum with loop unrolling
 	minVal := int32(header.MinVal)
-	for i := 1; i < int(header.NumValues); i++ {
-		dst[i] = dst[i] + minVal
+	numVals := int(header.NumValues)
+	_ = dst[numVals-1] // Bounds check hint
+	i := 1
+	prev := dst[0]
+	for ; i+3 < numVals; i += 4 {
+		dst[i] = dst[i] + minVal + prev
+		prev = dst[i]
+		dst[i+1] = dst[i+1] + minVal + prev
+		prev = dst[i+1]
+		dst[i+2] = dst[i+2] + minVal + prev
+		prev = dst[i+2]
+		dst[i+3] = dst[i+3] + minVal + prev
+		prev = dst[i+3]
 	}
-	for i := 1; i < int(header.NumValues); i++ {
-		dst[i] = dst[i] + dst[i-1]
+	prev = dst[i-1]
+	for ; i < numVals; i++ {
+		dst[i] = dst[i] + minVal + prev
+		prev = dst[i]
 	}
 	return header.NumValues
 }

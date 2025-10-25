@@ -25,7 +25,7 @@ func TestEncode(t *testing.T) {
 		},
 		{
 			name: "large numbers",
-			src:  []int64{100000, 100001, 100002, 100003},
+			src:  []int64{100000, 100001, 100002, 100003, 100004, 100005},
 		},
 		{
 			name: "irregular increments",
