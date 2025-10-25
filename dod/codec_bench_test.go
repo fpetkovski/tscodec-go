@@ -19,7 +19,7 @@ func BenchmarkInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				dst := EncodeInt64(dstBuf, src)
 				_ = dst
 			}
@@ -32,7 +32,7 @@ func BenchmarkInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				DecodeInt64(dst, encoded)
 			}
 		})
@@ -51,7 +51,7 @@ func BenchmarkInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				dst := EncodeInt64(dstBuf, src)
 				_ = dst
 			}
@@ -64,7 +64,7 @@ func BenchmarkInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				DecodeInt64(dst, encoded)
 			}
 		})
@@ -83,7 +83,7 @@ func BenchmarkInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				dst := EncodeInt64(dstBuf, src)
 				_ = dst
 			}
@@ -96,7 +96,7 @@ func BenchmarkInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				DecodeInt64(dst, encoded)
 			}
 		})
@@ -115,7 +115,7 @@ func BenchmarkInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				dst := EncodeInt64(dstBuf, src)
 				_ = dst
 			}
@@ -128,7 +128,7 @@ func BenchmarkInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				DecodeInt64(dst, encoded)
 			}
 		})
@@ -147,7 +147,7 @@ func BenchmarkInt32(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				dst := EncodeInt32(dstBuf, src)
 				_ = dst
 			}
@@ -160,7 +160,7 @@ func BenchmarkInt32(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				DecodeInt32(dst, encoded)
 			}
 		})
@@ -179,7 +179,7 @@ func BenchmarkInt32(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				dst := EncodeInt32(dstBuf, src)
 				_ = dst
 			}
@@ -192,7 +192,7 @@ func BenchmarkInt32(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				DecodeInt32(dst, encoded)
 			}
 		})
@@ -211,7 +211,7 @@ func BenchmarkInt32(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				dst := EncodeInt32(dstBuf, src)
 				_ = dst
 			}
@@ -224,7 +224,7 @@ func BenchmarkInt32(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				DecodeInt32(dst, encoded)
 			}
 		})
@@ -243,7 +243,7 @@ func BenchmarkUInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				dst := EncodeUInt64(dstBuf, src)
 				_ = dst
 			}
@@ -256,7 +256,7 @@ func BenchmarkUInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				DecodeUInt64(dst, encoded)
 			}
 		})
@@ -275,7 +275,7 @@ func BenchmarkUInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				dst := EncodeUInt64(dstBuf, src)
 				_ = dst
 			}
@@ -288,7 +288,7 @@ func BenchmarkUInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				DecodeUInt64(dst, encoded)
 			}
 		})
@@ -307,7 +307,7 @@ func BenchmarkUInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				dst := EncodeUInt64(dstBuf, src)
 				_ = dst
 			}
@@ -320,7 +320,7 @@ func BenchmarkUInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				DecodeUInt64(dst, encoded)
 			}
 		})
@@ -339,7 +339,7 @@ func BenchmarkUInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				dst := EncodeUInt64(dstBuf, src)
 				_ = dst
 			}
@@ -352,7 +352,7 @@ func BenchmarkUInt64(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				DecodeUInt64(dst, encoded)
 			}
 		})

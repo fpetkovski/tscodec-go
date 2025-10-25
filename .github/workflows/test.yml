@@ -1,0 +1,40 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            tags: ""
+          - arch: amd64
+            runner: ubuntu-latest
+            tags: purego
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            tags: ""
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            tags: purego
+    name: Test on ${{ matrix.arch }}${{ matrix.tags && format(' ({0})', matrix.tags) || '' }}
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Run tests
+        run: |
+          go test -v -tags=${{ matrix.tags }} ./...

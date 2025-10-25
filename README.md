@@ -85,7 +85,7 @@ ALP achieves high compression ratios for float64 data through:
 - Sequential patterns
 - Constant or near-constant values (achieves 99.7% compression)
 
-**See [ALGORITHM.md](ALGORITHM.md) for detailed explanation.**
+**See [ALGORITHM.md](alp/ALGORITHM.md) for detailed explanation.**
 
 ### Delta Encoding
 
