@@ -1,6 +1,4 @@
-# ALP Algorithm - Detailed Explanation
-
-`Adaptive Lossless floating-Point (ALP) Compression Algorithm`
+# Adaptive Lossless floating-Point (ALP) Compression Algorithm
 
 ## Overview 
 
