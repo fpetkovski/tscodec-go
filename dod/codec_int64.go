@@ -78,34 +78,45 @@ func DecodeInt64(dst []int64, src []byte) uint16 {
 	dst[0] = int64(binary.LittleEndian.Uint64(src[delta.Int64HeaderSize : delta.Int64HeaderSize+delta.Int64SizeBytes]))
 	bitpack.UnpackInt64(dst[1:header.NumValues], src[delta.Int64HeaderSize+delta.Int64SizeBytes:], uint(header.BitWidth))
 
+	numVals := int(header.NumValues)
+	// Bounds check hint
+	_ = dst[numVals-1]
+
+	// Add minVal to all unpacked values first using SIMD
+	minVal := header.MinVal
+	addConstInt64(dst[1:numVals], minVal)
+
+	// Now reconstruct DoD without minVal in critical path
 	d0 := int64(0)
 	prev := dst[0]
-	minVal := header.MinVal
 	i := 1
-	_ = dst[header.NumValues-1]
-	//for ; i+3 < int(header.NumValues); i += 4 {
-	//	d1 := dst[i] + d0 + minVal
-	//	dst[i] = d1 + prev
-	//	d0 = d1
-	//	prev = dst[i]
-	//
-	//	d1 = dst[i+1] + d0 + minVal
-	//	dst[i+1] = d1 + prev
-	//	d0 = d1
-	//	prev = dst[i+1]
-	//
-	//	d1 = dst[i+2] + d0 + minVal
-	//	dst[i+2] = d1 + prev
-	//	d0 = d1
-	//	prev = dst[i+2]
-	//
-	//	d1 = dst[i+3] + d0 + minVal
-	//	dst[i+3] = d1 + prev
-	//	d0 = d1
-	//	prev = dst[i+3]
-	//}
-	for ; i < int(header.NumValues); i++ {
-		d1 := dst[i] + d0 + minVal
+
+	// Loop unrolling - process 4 elements at a time
+	for ; i+3 < numVals; i += 4 {
+		d1 := dst[i] + d0
+		prev = d1 + prev
+		dst[i] = prev
+		d0 = d1
+
+		d1 = dst[i+1] + d0
+		prev = d1 + prev
+		dst[i+1] = prev
+		d0 = d1
+
+		d1 = dst[i+2] + d0
+		prev = d1 + prev
+		dst[i+2] = prev
+		d0 = d1
+
+		d1 = dst[i+3] + d0
+		prev = d1 + prev
+		dst[i+3] = prev
+		d0 = d1
+	}
+
+	// Handle remaining elements
+	for ; i < numVals; i++ {
+		d1 := dst[i] + d0
 		prev = d1 + prev
 		dst[i] = prev
 		d0 = d1

@@ -77,11 +77,41 @@ func DecodeInt32(dst []int32, src []byte) uint16 {
 	// Bounds check hint
 	_ = dst[numVals-1]
 
+	// Add minVal to all unpacked values first using SIMD
+	minVal := int32(header.MinVal)
+	addConstInt32(dst[1:numVals], minVal)
+
+	// Now reconstruct DoD without minVal in critical path
 	d0 := int32(0)
 	prev := dst[0]
-	minVal := int32(header.MinVal)
-	for i := 1; i < numVals; i++ {
-		d1 := dst[i] + d0 + minVal
+	i := 1
+
+	// Loop unrolling - process 4 elements at a time
+	for ; i+3 < numVals; i += 4 {
+		d1 := dst[i] + d0
+		prev = d1 + prev
+		dst[i] = prev
+		d0 = d1
+
+		d1 = dst[i+1] + d0
+		prev = d1 + prev
+		dst[i+1] = prev
+		d0 = d1
+
+		d1 = dst[i+2] + d0
+		prev = d1 + prev
+		dst[i+2] = prev
+		d0 = d1
+
+		d1 = dst[i+3] + d0
+		prev = d1 + prev
+		dst[i+3] = prev
+		d0 = d1
+	}
+
+	// Handle remaining elements
+	for ; i < numVals; i++ {
+		d1 := dst[i] + d0
 		prev = d1 + prev
 		dst[i] = prev
 		d0 = d1
