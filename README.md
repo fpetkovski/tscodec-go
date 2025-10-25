@@ -32,9 +32,9 @@ import (
 func main() {
     // Original data
     data := []float64{1.1, 2.2, 3.3, 4.4, 5.5}
-
     // Compress
-    compressed := alp.Compress(data)
+	compressed := make([]byte, 10)
+	compressed = alp.Compress(compressed, data)
 
     // Decompress
     decompressed := make([]float64, len(data))
@@ -85,7 +85,7 @@ ALP achieves high compression ratios for float64 data through:
 - Sequential patterns
 - Constant or near-constant values (achieves 99.7% compression)
 
-**See [ALGORITHM.md](alp/README) for detailed explanation.**
+**See [alp/README](alp/README) for detailed explanation.**
 
 ### Delta Encoding
 
@@ -112,50 +112,6 @@ The library includes architecture-specific optimizations:
 - **Pure Go**: Portable fallback implementation
 
 Benchmarks show compression and decompression throughput of several GB/s on modern CPUs.
-
-## Module Structure
-
-```
-tscodec-go/
-├── alp/           # ALP compression for float64
-├── delta/         # Delta encoding for int32/int64
-├── dod/           # Delta-of-Delta encoding
-├── bitpack/       # Low-level bit-packing utilities
-├── unsafecast/    # Type conversion utilities
-```
-
-## API Documentation
-
-### ALP Package
-
-```go
-// Compress float64 slice
-func Compress(data []float64) []byte
-
-// Decompress to float64 slice
-func Decompress(dst []float64, data []byte) int
-
-// Calculate compression ratio
-func CompressionRatio(originalCount int, compressedSize int) float64
-```
-
-### Delta Package
-
-```go
-// Encode int64 slice with delta encoding
-func EncodeInt64(dst []byte, src []int64) []byte
-
-// Decode int64 slice
-func DecodeInt64(dst []int64, src []byte) uint16
-
-// Int32 variants also available
-func EncodeInt32(dst []byte, src []int32) []byte
-func DecodeInt32(dst []int32, src []byte) uint16
-```
-
-## Requirements
-
-- Go 1.25.1 or later
 
 ## Contributing
 
