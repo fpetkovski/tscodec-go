@@ -3,9 +3,9 @@ package unsafecast_test
 import (
 	"testing"
 
-	"github.com/fpetkovski/tscodec-go/unsafecast"
-
 	"golang.org/x/sys/cpu"
+
+	"github.com/fpetkovski/tscodec-go/unsafecast"
 )
 
 func TestUnsafeCastSlice(t *testing.T) {

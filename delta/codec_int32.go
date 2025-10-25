@@ -1,11 +1,12 @@
 package delta
 
 import (
-	"github.com/fpetkovski/tscodec-go/alp"
-	"github.com/fpetkovski/tscodec-go/bitpack"
 	"encoding/binary"
 	"math"
 	"slices"
+
+	"github.com/fpetkovski/tscodec-go/alp"
+	"github.com/fpetkovski/tscodec-go/bitpack"
 )
 
 const (

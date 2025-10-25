@@ -1,13 +1,14 @@
 package dod
 
 import (
+	"encoding/binary"
+	"math"
+	"slices"
+
 	"github.com/fpetkovski/tscodec-go/alp"
 	"github.com/fpetkovski/tscodec-go/bitpack"
 	"github.com/fpetkovski/tscodec-go/delta"
 	"github.com/fpetkovski/tscodec-go/unsafecast"
-	"encoding/binary"
-	"math"
-	"slices"
 )
 
 type Uint64Block [BlockSize]uint64

@@ -3,8 +3,9 @@
 package bitpack
 
 import (
-	"github.com/parquet-go/parquet-go/internal/unsafecast"
 	"golang.org/x/sys/cpu"
+
+	"github.com/fpetkovski/tscodec-go/unsafecast"
 )
 
 //go:noescape

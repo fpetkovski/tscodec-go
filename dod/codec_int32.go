@@ -1,12 +1,13 @@
 package dod
 
 import (
-	"github.com/fpetkovski/tscodec-go/alp"
-	"github.com/fpetkovski/tscodec-go/bitpack"
-	"github.com/fpetkovski/tscodec-go/delta"
 	"encoding/binary"
 	"math"
 	"slices"
+
+	"github.com/fpetkovski/tscodec-go/alp"
+	"github.com/fpetkovski/tscodec-go/bitpack"
+	"github.com/fpetkovski/tscodec-go/delta"
 )
 
 type Int32Block [BlockSize]int32
