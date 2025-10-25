@@ -11,6 +11,10 @@ import (
 	"github.com/prometheus/prometheus/model/histogram"
 )
 
+var rleCodec = rle.Encoding{}
+
+const maxSamples = 120
+
 // decodeHistograms decodes histograms from a buffer created by encodeHistograms.
 //
 // DECODING FORMAT:
@@ -46,9 +50,9 @@ func decodeHistograms(dst []*histogram.Histogram, src []byte, numSamples int) {
 	i := 0
 
 	// Decode hints (RLE - non-self-describing, needs bounds)
-	enc := rle.Encoding{}
-	hints := make([]byte, numSamples)
-	_, _ = enc.DecodeBoolean(hints, src[offsets[i]:offsets[i+1]])
+	var hintsArray [maxSamples]byte
+	hints := hintsArray[:numSamples]
+	_, _ = rleCodec.DecodeBoolean(hints, src[offsets[i]:offsets[i+1]])
 	i++
 
 	// Decode schema (DoD int32 - self-describing)
@@ -57,7 +61,8 @@ func decodeHistograms(dst []*histogram.Histogram, src []byte, numSamples int) {
 	i++
 
 	// Decode zero thresholds (ALP - non-self-describing, needs bounds)
-	zeroThresholds := make([]float64, numSamples)
+	var zeroThresholdsArray [maxSamples]float64
+	zeroThresholds := zeroThresholdsArray[:numSamples]
 	_ = alp.Decompress(zeroThresholds, src[offsets[i]:offsets[i+1]])
 	i++
 
@@ -72,7 +77,8 @@ func decodeHistograms(dst []*histogram.Histogram, src []byte, numSamples int) {
 	i++
 
 	// Decode sums (ALP - non-self-describing, needs bounds)
-	sums := make([]float64, numSamples)
+	var sumsArray [maxSamples]float64
+	sums := sumsArray[:numSamples]
 	_ = alp.Decompress(sums, src[offsets[i]:offsets[i+1]])
 	i++
 
@@ -82,7 +88,7 @@ func decodeHistograms(dst []*histogram.Histogram, src []byte, numSamples int) {
 	if i+1 < len(offsets) {
 		endIdx = int(offsets[i+1])
 	}
-	numPosSpanOffsets := delta.Decode(posSpanOffsets, src[offsets[i]:endIdx])
+	numPosSpanOffsets := delta.DecodeInt64(posSpanOffsets, src[offsets[i]:endIdx])
 	posSpanOffsets = posSpanOffsets[:numPosSpanOffsets]
 	i++
 
@@ -91,36 +97,36 @@ func decodeHistograms(dst []*histogram.Histogram, src []byte, numSamples int) {
 	if i+1 < len(offsets) {
 		endIdx = int(offsets[i+1])
 	}
-	numPosSpanLengths := delta.Decode(posSpanLengths, src[offsets[i]:endIdx])
+	numPosSpanLengths := delta.DecodeInt64(posSpanLengths, src[offsets[i]:endIdx])
 	posSpanLengths = posSpanLengths[:numPosSpanLengths]
 	i++
 
-	var posSpanCounts delta.Block
-	delta.Decode(posSpanCounts[:], src[offsets[i]:offsets[i+1]])
+	var posSpanCounts delta.Int64Block
+	delta.DecodeInt64(posSpanCounts[:], src[offsets[i]:offsets[i+1]])
 	i++
 
 	// Decode negative span offsets, lengths, counts (Delta - self-describing)
 	negSpanOffsets := make([]int64, 4096)
-	numNegSpanOffsets := delta.Decode(negSpanOffsets, src[offsets[i]:offsets[i+1]])
+	numNegSpanOffsets := delta.DecodeInt64(negSpanOffsets, src[offsets[i]:offsets[i+1]])
 	negSpanOffsets = negSpanOffsets[:numNegSpanOffsets]
 	i++
 
 	negSpanLengths := make([]int64, 4096)
-	numNegSpanLengths := delta.Decode(negSpanLengths, src[offsets[i]:offsets[i+1]])
+	numNegSpanLengths := delta.DecodeInt64(negSpanLengths, src[offsets[i]:offsets[i+1]])
 	negSpanLengths = negSpanLengths[:numNegSpanLengths]
 	i++
 
-	var negSpanCounts delta.Block
-	delta.Decode(negSpanCounts[:], src[offsets[i]:offsets[i+1]])
+	var negSpanCounts delta.Int64Block
+	delta.DecodeInt64(negSpanCounts[:], src[offsets[i]:offsets[i+1]])
 	i++
 
 	// Decode positive bucket counts per histogram
-	var posBucketCounts delta.Block
+	var posBucketCounts delta.Int64Block
 	endIdx = lengthsStart
 	if i+1 < len(offsets) {
 		endIdx = int(offsets[i+1])
 	}
-	delta.Decode(posBucketCounts[:], src[offsets[i]:endIdx])
+	delta.DecodeInt64(posBucketCounts[:], src[offsets[i]:endIdx])
 	i++
 
 	// Decode positive bucket first values (DoD int64 - self-describing)
@@ -133,23 +139,22 @@ func decodeHistograms(dst []*histogram.Histogram, src []byte, numSamples int) {
 	i++
 
 	// Decode positive bucket deltas (Delta - self-describing)
-	// Deltas can exceed BlockSize, so we need a larger slice
-	posDeltas := make([]int64, 16384) // Enough for many histograms
+	// Deltas can exceed Int64BlockSize, so we need a larger slice
+	var posDeltas [1024]int64 // Enough for many histograms
 	endIdx = lengthsStart
 	if i+1 < len(offsets) {
 		endIdx = int(offsets[i+1])
 	}
-	numPosDeltas := delta.Decode(posDeltas, src[offsets[i]:endIdx])
-	posDeltas = posDeltas[:numPosDeltas]
+	numPosDeltas := delta.DecodeInt64(posDeltas[:], src[offsets[i]:endIdx])
 	i++
 
 	// Decode negative bucket counts per histogram
-	var negBucketCounts delta.Block
+	var negBucketCounts delta.Int64Block
 	endIdx = lengthsStart
 	if i+1 < len(offsets) {
 		endIdx = int(offsets[i+1])
 	}
-	delta.Decode(negBucketCounts[:], src[offsets[i]:endIdx])
+	delta.DecodeInt64(negBucketCounts[:], src[offsets[i]:endIdx])
 	i++
 
 	// Decode negative bucket first values (DoD int64 - self-describing)
@@ -162,10 +167,9 @@ func decodeHistograms(dst []*histogram.Histogram, src []byte, numSamples int) {
 	i++
 
 	// Decode negative bucket deltas (last field, has padding, goes until lengthsStart)
-	// Deltas can exceed BlockSize, so we need a larger slice
-	negDeltas := make([]int64, 16384) // Enough for many histograms
-	numNegDeltas := delta.Decode(negDeltas, src[offsets[i]:lengthsStart])
-	negDeltas = negDeltas[:numNegDeltas]
+	// Deltas can exceed Int64BlockSize, so we need a larger slice
+	var negDeltas [1024]int64 // Enough for many histograms
+	numNegDeltas := delta.DecodeInt64(negDeltas[:], src[offsets[i]:lengthsStart])
 
 	// Reconstruct histograms
 	posSpanIdx := 0
@@ -174,11 +178,13 @@ func decodeHistograms(dst []*histogram.Histogram, src []byte, numSamples int) {
 	negFirstBucketIdx := 0
 	posDeltaIdx := 0
 	negDeltaIdx := 0
-
+	positiveSpans := make([]histogram.Span, numPosSpanLengths)
+	for i := range numPosSpanLengths {
+		positiveSpans[i].Offset = posSpanOffsets[i]
+		positiveSpans[i].Length = posSpanLengths[i]
+	}
+	negativeSpans := make([]histogram.Span, numNegSpanLengths)
 	for histIdx := 0; histIdx < numSamples; histIdx++ {
-		if dst[histIdx] == nil {
-			dst[histIdx] = &histogram.Histogram{}
-		}
 		h := dst[histIdx]
 
 		// Restore basic fields
@@ -428,7 +434,7 @@ func encodeHistogramsInternal(hs []*histogram.Histogram, numSamples int, sizeOnl
 // trimPadding removes the padding bytes from the end of the buffer.
 // Each encoding adds 32 bytes of padding, we'll add it back once at the end.
 func trimPadding(buf []byte, paddingSize int) []byte {
-	return buf
+	//return buf
 	if len(buf) >= paddingSize {
 		return buf[:len(buf)-paddingSize]
 	}

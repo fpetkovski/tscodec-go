@@ -17,8 +17,10 @@ func BenchmarkFloatEncoding(b *testing.B) {
 	const numSamples = 120
 	t := time.Now().UnixMilli()
 	v := float64(10_000)
-	ts := make([]int64, numSamples)
-	vs := make([]float64, numSamples)
+	var tsArray [maxSamples]int64
+	var vsArray [maxSamples]float64
+	ts := tsArray[:numSamples]
+	vs := vsArray[:numSamples]
 	for i := range numSamples {
 		ts[i] = t + int64(15_000*i) + int64(rand.Float64()*100)
 		vs[i] = v + rand.Float64()*1000
@@ -78,9 +80,10 @@ func BenchmarkFloatEncoding(b *testing.B) {
 		fsc := alp.Compress(vs)
 
 		var (
-			ints   dod.Int64Block
-			floats = make([]float64, numSamples)
+			ints        dod.Int64Block
+			floatsArray [maxSamples]float64
 		)
+		floats := floatsArray[:numSamples]
 		for b.Loop() {
 			dod.DecodeInt64(ints[:], tsc)
 			_ = alp.Decompress(floats, fsc)
