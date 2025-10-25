@@ -10,47 +10,69 @@ TEXT ·addConstInt64(SB), NOSPLIT, $0-32
 
     CBZ R1, done
 
-    // Main loop - process 8 elements at a time
+    // Duplicate constant to vector register (2x int64)
+    VMOV R2, V0.D[0]
+    VMOV R2, V0.D[1]
+
+    // Main loop - process 16 elements at a time using SIMD
+    CMP $16, R1
+    BLT tail8
+
+loop16:
+    // Prefetch 2 cache lines ahead
+    PRFM 128(R0), PLDL1KEEP
+    PRFM 192(R0), PLDL1KEEP
+
+    // Load first 8 int64 values
+    VLD1 (R0), [V1.D2, V2.D2, V3.D2, V4.D2]
+    ADD $64, R0
+    // Load next 8 int64 values
+    VLD1 (R0), [V5.D2, V6.D2, V7.D2, V8.D2]
+
+    // Add constant to all vectors
+    VADD V0.D2, V1.D2, V1.D2
+    VADD V0.D2, V2.D2, V2.D2
+    VADD V0.D2, V3.D2, V3.D2
+    VADD V0.D2, V4.D2, V4.D2
+    VADD V0.D2, V5.D2, V5.D2
+    VADD V0.D2, V6.D2, V6.D2
+    VADD V0.D2, V7.D2, V7.D2
+    VADD V0.D2, V8.D2, V8.D2
+
+    // Store both halves back
+    SUB $64, R0
+    VST1 [V1.D2, V2.D2, V3.D2, V4.D2], (R0)
+    ADD $64, R0
+    VST1 [V5.D2, V6.D2, V7.D2, V8.D2], (R0)
+
+    ADD $64, R0
+    SUB $16, R1
+    CMP $16, R1
+    BGE loop16
+
+tail8:
     CMP $8, R1
     BLT tail4
 
-loop8:
-    LDP (R0), (R3, R4)           // Load 2 int64
-    LDP 16(R0), (R5, R6)         // Load 2 more
-    LDP 32(R0), (R7, R8)         // Load 2 more
-    LDP 48(R0), (R9, R10)        // Load 2 more
-
-    ADD R2, R3, R3
-    ADD R2, R4, R4
-    ADD R2, R5, R5
-    ADD R2, R6, R6
-    ADD R2, R7, R7
-    ADD R2, R8, R8
-    ADD R2, R9, R9
-    ADD R2, R10, R10
-
-    STP (R3, R4), (R0)
-    STP (R5, R6), 16(R0)
-    STP (R7, R8), 32(R0)
-    STP (R9, R10), 48(R0)
-
+    PRFM 64(R0), PLDL1KEEP
+    VLD1 (R0), [V1.D2, V2.D2, V3.D2, V4.D2]
+    VADD V0.D2, V1.D2, V1.D2
+    VADD V0.D2, V2.D2, V2.D2
+    VADD V0.D2, V3.D2, V3.D2
+    VADD V0.D2, V4.D2, V4.D2
+    VST1 [V1.D2, V2.D2, V3.D2, V4.D2], (R0)
     ADD $64, R0
     SUB $8, R1
-    CMP $8, R1
-    BGE loop8
 
 tail4:
     CMP $4, R1
     BLT tail2
 
-    LDP (R0), (R3, R4)
-    LDP 16(R0), (R5, R6)
-    ADD R2, R3, R3
-    ADD R2, R4, R4
-    ADD R2, R5, R5
-    ADD R2, R6, R6
-    STP (R3, R4), (R0)
-    STP (R5, R6), 16(R0)
+    // Load 4 int64 values (2 vectors)
+    VLD1 (R0), [V1.D2, V2.D2]
+    VADD V0.D2, V1.D2, V1.D2
+    VADD V0.D2, V2.D2, V2.D2
+    VST1 [V1.D2, V2.D2], (R0)
     ADD $32, R0
     SUB $4, R1
 
@@ -58,10 +80,10 @@ tail2:
     CMP $2, R1
     BLT tail1
 
-    LDP (R0), (R3, R4)
-    ADD R2, R3, R3
-    ADD R2, R4, R4
-    STP (R3, R4), (R0)
+    // Load 2 int64 values (1 vector)
+    VLD1 (R0), [V1.D2]
+    VADD V0.D2, V1.D2, V1.D2
+    VST1 [V1.D2], (R0)
     ADD $16, R0
     SUB $2, R1
 
@@ -82,58 +104,57 @@ TEXT ·addConstInt32(SB), NOSPLIT, $0-28
 
     CBZ R1, done32
 
+    // Duplicate constant to vector register (4x int32)
+    VMOV R2, V0.S[0]
+    VMOV R2, V0.S[1]
+    VMOV R2, V0.S[2]
+    VMOV R2, V0.S[3]
+
+    // Main loop - process 16 elements at a time using SIMD
+    CMP $16, R1
+    BLT tail32_8
+
+loop32_16:
+    // Prefetch next cache line
+    PRFM 64(R0), PLDL1KEEP
+
+    // Load 16 int32 values (4 vectors of 4 int32 each)
+    VLD1 (R0), [V1.S4, V2.S4, V3.S4, V4.S4]
+
+    // Add constant vector to each
+    VADD V0.S4, V1.S4, V1.S4
+    VADD V0.S4, V2.S4, V2.S4
+    VADD V0.S4, V3.S4, V3.S4
+    VADD V0.S4, V4.S4, V4.S4
+
+    // Store back
+    VST1 [V1.S4, V2.S4, V3.S4, V4.S4], (R0)
+
+    ADD $64, R0
+    SUB $16, R1
+    CMP $16, R1
+    BGE loop32_16
+
+tail32_8:
     CMP $8, R1
     BLT tail32_4
 
-loop32_8:
-    MOVW (R0), R3
-    MOVW 4(R0), R4
-    MOVW 8(R0), R5
-    MOVW 12(R0), R6
-    MOVW 16(R0), R7
-    MOVW 20(R0), R8
-    MOVW 24(R0), R9
-    MOVW 28(R0), R10
-
-    ADD R2, R3, R3
-    ADD R2, R4, R4
-    ADD R2, R5, R5
-    ADD R2, R6, R6
-    ADD R2, R7, R7
-    ADD R2, R8, R8
-    ADD R2, R9, R9
-    ADD R2, R10, R10
-
-    MOVW R3, (R0)
-    MOVW R4, 4(R0)
-    MOVW R5, 8(R0)
-    MOVW R6, 12(R0)
-    MOVW R7, 16(R0)
-    MOVW R8, 20(R0)
-    MOVW R9, 24(R0)
-    MOVW R10, 28(R0)
-
+    // Load 8 int32 values (2 vectors)
+    VLD1 (R0), [V1.S4, V2.S4]
+    VADD V0.S4, V1.S4, V1.S4
+    VADD V0.S4, V2.S4, V2.S4
+    VST1 [V1.S4, V2.S4], (R0)
     ADD $32, R0
     SUB $8, R1
-    CMP $8, R1
-    BGE loop32_8
 
 tail32_4:
     CMP $4, R1
     BLT tail32_1
 
-    MOVW (R0), R3
-    MOVW 4(R0), R4
-    MOVW 8(R0), R5
-    MOVW 12(R0), R6
-    ADD R2, R3, R3
-    ADD R2, R4, R4
-    ADD R2, R5, R5
-    ADD R2, R6, R6
-    MOVW R3, (R0)
-    MOVW R4, 4(R0)
-    MOVW R5, 8(R0)
-    MOVW R6, 12(R0)
+    // Load 4 int32 values (1 vector)
+    VLD1 (R0), [V1.S4]
+    VADD V0.S4, V1.S4, V1.S4
+    VST1 [V1.S4], (R0)
     ADD $16, R0
     SUB $4, R1
 
