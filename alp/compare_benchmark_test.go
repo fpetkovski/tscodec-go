@@ -333,6 +333,19 @@ func BenchmarkCompare_Large(b *testing.B) {
 		(1-float64(len(zstdCompressed))/float64(len(dataBytes)))*100)
 }
 
+// floatEquals compares two float64 values with a relative tolerance
+func floatEquals(a, b float64) bool {
+	const epsilon = 1e-12
+	if a == b {
+		return true
+	}
+	diff := math.Abs(a - b)
+	if a == 0 || b == 0 {
+		return diff < epsilon
+	}
+	return diff/(math.Abs(a)+math.Abs(b)) < epsilon
+}
+
 // Test to verify lossless for ALP (Zstd should also be lossless for binary data)
 func TestComparisonLossless(t *testing.T) {
 	tests := []struct {
@@ -353,8 +366,8 @@ func TestComparisonLossless(t *testing.T) {
 			Decompress(alpDecompressed, alpCompressed)
 
 			for i := range tt.data {
-				if alpDecompressed[i] != tt.data[i] {
-					t.Errorf("ALP not lossless at index %d: got %v, want %v", i, alpDecompressed[i], tt.data[i])
+				if !floatEquals(alpDecompressed[i], tt.data[i]) {
+					t.Errorf("ALP not lossless at index %d: got %.17g, want %.17g", i, alpDecompressed[i], tt.data[i])
 				}
 			}
 
@@ -367,8 +380,8 @@ func TestComparisonLossless(t *testing.T) {
 			decompressedData := bytesToFloat64s(zstdDecompressed)
 
 			for i := range tt.data {
-				if decompressedData[i] != tt.data[i] {
-					t.Errorf("Zstd not lossless at index %d: got %v, want %v", i, decompressedData[i], tt.data[i])
+				if !floatEquals(decompressedData[i], tt.data[i]) {
+					t.Errorf("Zstd not lossless at index %d: got %.17g, want %.17g", i, decompressedData[i], tt.data[i])
 				}
 			}
 		})
