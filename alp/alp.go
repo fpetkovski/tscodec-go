@@ -145,7 +145,7 @@ func Decompress(dst []float64, data []byte) []float64 {
 		numValues := metadata.Count
 
 		// Use lookup table for power of 10.
-		factor := powersOf10[metadata.Exponent+10]
+		invFactor := powersOf10[(10-metadata.Exponent+21)%21]
 
 		// Combined loop: add minValue and convert to float64 in one pass
 		// This reduces memory traffic and allows better optimization
@@ -155,13 +155,13 @@ func Decompress(dst []float64, data []byte) []float64 {
 			_ = ints[i+3]
 			_ = result[i+3]
 
-			result[i] = float64(ints[i]+minValue) / factor
-			result[i+1] = float64(ints[i+1]+minValue) / factor
-			result[i+2] = float64(ints[i+2]+minValue) / factor
-			result[i+3] = float64(ints[i+3]+minValue) / factor
+			result[i] = float64(ints[i]+minValue) * invFactor
+			result[i+1] = float64(ints[i+1]+minValue) * invFactor
+			result[i+2] = float64(ints[i+2]+minValue) * invFactor
+			result[i+3] = float64(ints[i+3]+minValue) * invFactor
 		}
 		for ; i < numValues; i++ {
-			result[i] = float64(ints[i]+minValue) / factor
+			result[i] = float64(ints[i]+minValue) * invFactor
 		}
 
 		return dst[:metadata.Count]
@@ -185,6 +185,7 @@ func findBestExponent(data []float64) int {
 	// Try different exponents
 	for exp := MinExponent; exp <= MaxExponent; exp++ {
 		factor := powersOf10[exp+10]
+		invFactor := powersOf10[(10-exp+21)%21]
 		maxBits := 0
 		valid := true
 
@@ -197,8 +198,8 @@ func findBestExponent(data []float64) int {
 			rounded := math.Round(scaled)
 			intValue := int64(rounded)
 
-			// Reconstruct and check if lossless
-			reconstructed := float64(intValue) / factor
+			// Reconstruct and check if lossless using same method as decompression
+			reconstructed := float64(intValue) * invFactor
 			relativeError := math.Abs(original - reconstructed)
 			if original != 0 {
 				relativeError /= math.Abs(original)
@@ -262,9 +263,23 @@ func DecompressValues(result []float64, src []byte, metadata CompressionMetadata
 
 		// Reverse frame-of-reference and convert back to float64 in one pass
 		minValue := metadata.FrameOfRef
-		factor := powersOf10[metadata.Exponent+10]
-		for i := range metadata.Count {
-			result[i] = float64(unpacked[i]+minValue) / factor
+		invFactor := powersOf10[(10-metadata.Exponent+21)%21]
+		numValues := metadata.Count
+
+		// Unroll loop for better performance
+		i := int32(0)
+		for ; i+3 < numValues; i += 4 {
+			// Bounds check hint for the group of 4
+			_ = unpacked[i+3]
+			_ = result[i+3]
+
+			result[i] = float64(unpacked[i]+minValue) * invFactor
+			result[i+1] = float64(unpacked[i+1]+minValue) * invFactor
+			result[i+2] = float64(unpacked[i+2]+minValue) * invFactor
+			result[i+3] = float64(unpacked[i+3]+minValue) * invFactor
+		}
+		for ; i < numValues; i++ {
+			result[i] = float64(unpacked[i]+minValue) * invFactor
 		}
 	}
 }
