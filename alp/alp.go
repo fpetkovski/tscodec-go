@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"math"
 
-	"github.com/fpetkovski/tscodec-go/bitpack"
-	"github.com/fpetkovski/tscodec-go/unsafecast"
+	"github.com/parquet-go/bitpack"
+	"github.com/parquet-go/bitpack/unsafecast"
 )
 
 const (

@@ -1,8 +1,6 @@
 github.com/klauspost/compress v1.18.0 h1:c/Cqfb0r+Yi+JtIEq73FWXVkRonBlf0CRNYc8Zttxdo=
 github.com/klauspost/compress v1.18.0/go.mod h1:2Pp+KzxcywXVXMr50+X0Q/Lsb43OQHYWRCY2AiWywWQ=
-github.com/parquet-go/bitpack v0.0.0-20251025130349-dc7abba6c127 h1:X3x/SAXeEiKrRp3/Eh5uq+Nkuq0rfgeprgUSGUIgTF0=
-github.com/parquet-go/bitpack v0.0.0-20251025130349-dc7abba6c127/go.mod h1:Ef5FEKAqlyHECov7Z3RKOq8Ud9Vr8cbGNoCF56KEKaE=
-github.com/parquet-go/parquet-go v0.25.1 h1:l7jJwNM0xrk0cnIIptWMtnSnuxRkwq53S+Po3KG8Xgo=
-github.com/parquet-go/parquet-go v0.25.1/go.mod h1:AXBuotO1XiBtcqJb/FKFyjBG4aqa3aQAAWF3ZPzCanY=
+github.com/parquet-go/bitpack v0.0.0-20251026075331-05a3f34aa3c1 h1:Vt3Aezl1gfHqRaShGejpOneSSx0Y6J+x5jPc03RhuN8=
+github.com/parquet-go/bitpack v0.0.0-20251026075331-05a3f34aa3c1/go.mod h1:Ef5FEKAqlyHECov7Z3RKOq8Ud9Vr8cbGNoCF56KEKaE=
 golang.org/x/sys v0.37.0 h1:fdNQudmxPjkdUTPnLn5mdQv7Zwvbvpaxqs831goi9kQ=
 golang.org/x/sys v0.37.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=

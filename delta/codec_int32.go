@@ -5,13 +5,17 @@ import (
 	"math"
 	"slices"
 
+	"github.com/parquet-go/bitpack"
+
 	"github.com/fpetkovski/tscodec-go/alp"
-	"github.com/fpetkovski/tscodec-go/bitpack"
 )
 
 const (
 	// Int32BlockSize is the maximum amount of values that can be encoded at once.
 	Int32BlockSize = 4096
+
+	// Int32SizeBytes is the size in bytes of an int32.
+	Int32SizeBytes = 4
 )
 
 type Int32Block [Int32BlockSize]int32
@@ -21,16 +25,17 @@ func EncodeInt32(dst []byte, src []int32) []byte {
 	case 0:
 		return dst
 	case 1:
-		dst = slices.Grow(dst, Int64HeaderSize)[:Int64HeaderSize]
-		EncodeInt64Header(dst, 1, int64(src[0]), 0)
+		dst = slices.Grow(dst, HeaderSize)[:HeaderSize]
+		EncodeHeader(dst, 1, int64(src[0]), 0)
 		return dst
 	}
 
-	minVal := int32(math.MaxInt32)
-	encoded := make([]int32, len(src))
-	encoded[0] = src[0]
+	// Use int64 to avoid overflow when computing adjusted deltas
+	minVal := int64(math.MaxInt64)
+	encoded := make([]int64, len(src))
+	encoded[0] = int64(src[0])
 	for i := 1; i < len(src); i++ {
-		delta := src[i] - src[i-1]
+		delta := int64(src[i]) - int64(src[i-1])
 		encoded[i] = delta
 		minVal = min(minVal, delta)
 	}
@@ -45,14 +50,14 @@ func EncodeInt32(dst []byte, src []int32) []byte {
 	}
 
 	packedSize := bitpack.ByteCount(uint((len(encoded) - 1) * bitWidth))
-	totalSize := packedSize + Int64SizeBytes + Int64HeaderSize + bitpack.PaddingInt64
+	totalSize := packedSize + Int32SizeBytes + HeaderSize + bitpack.PaddingInt64
 	dst = slices.Grow(dst, totalSize)[:totalSize]
 
-	EncodeInt64Header(dst, uint16(len(src)), int64(minVal), uint8(bitWidth))
+	EncodeHeader(dst, uint16(len(src)), minVal, uint8(bitWidth))
 
-	// Encode the first value as is and bitpack the rest.
-	binary.LittleEndian.PutUint64(dst[Int64HeaderSize:Int64HeaderSize+Int64SizeBytes], uint64(encoded[0]))
-	bitpack.PackInt32(dst[Int64HeaderSize+Int64SizeBytes:], encoded[1:], uint(bitWidth))
+	// Encode the first value as int32 and bitpack the rest as int64
+	binary.LittleEndian.PutUint32(dst[HeaderSize:], uint32(encoded[0]))
+	bitpack.PackInt64(dst[HeaderSize+Int32SizeBytes:], encoded[1:], uint(bitWidth))
 
 	return dst
 }
@@ -62,35 +67,42 @@ func DecodeInt32(dst []int32, src []byte) uint16 {
 		return 0
 	}
 
-	header := DecodeInt64Header(src)
+	header := DecodeHeader(src)
 
 	if header.NumValues == 1 {
 		dst[0] = int32(header.MinVal)
 		return 1
 	}
-	dst[0] = int32(binary.LittleEndian.Uint32(src[Int64HeaderSize : Int64HeaderSize+Int64SizeBytes]))
-	bitpack.UnpackInt32(dst[1:header.NumValues], src[Int64HeaderSize+Int64SizeBytes:], uint(header.BitWidth))
+	dst[0] = int32(binary.LittleEndian.Uint32(src[HeaderSize:]))
+
+	// Unpack the adjusted deltas as int64 to match encoding
+	adjustedDeltas := make([]int64, header.NumValues-1)
+	bitpack.UnpackInt64(adjustedDeltas, src[HeaderSize+Int32SizeBytes:], uint(header.BitWidth))
 
 	// Combine adding minVal and computing prefix sum with loop unrolling
-	minVal := int32(header.MinVal)
+	minVal := header.MinVal
 	numVals := int(header.NumValues)
 	_ = dst[numVals-1] // Bounds check hint
 	i := 1
-	prev := dst[0]
+	prev := int64(dst[0])
 	for ; i+3 < numVals; i += 4 {
-		dst[i] = dst[i] + minVal + prev
-		prev = dst[i]
-		dst[i+1] = dst[i+1] + minVal + prev
-		prev = dst[i+1]
-		dst[i+2] = dst[i+2] + minVal + prev
-		prev = dst[i+2]
-		dst[i+3] = dst[i+3] + minVal + prev
-		prev = dst[i+3]
+		val := adjustedDeltas[i-1] + minVal + prev
+		dst[i] = int32(val)
+		prev = val
+		val = adjustedDeltas[i] + minVal + prev
+		dst[i+1] = int32(val)
+		prev = val
+		val = adjustedDeltas[i+1] + minVal + prev
+		dst[i+2] = int32(val)
+		prev = val
+		val = adjustedDeltas[i+2] + minVal + prev
+		dst[i+3] = int32(val)
+		prev = val
 	}
-	prev = dst[i-1]
 	for ; i < numVals; i++ {
-		dst[i] = dst[i] + minVal + prev
-		prev = dst[i]
+		val := adjustedDeltas[i-1] + minVal + prev
+		dst[i] = int32(val)
+		prev = val
 	}
 	return header.NumValues
 }

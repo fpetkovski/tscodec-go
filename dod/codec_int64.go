@@ -5,8 +5,9 @@ import (
 	"math"
 	"slices"
 
+	"github.com/parquet-go/bitpack"
+
 	"github.com/fpetkovski/tscodec-go/alp"
-	"github.com/fpetkovski/tscodec-go/bitpack"
 	"github.com/fpetkovski/tscodec-go/delta"
 )
 
@@ -23,9 +24,9 @@ func EncodeInt64(dst []byte, src []int64) []byte {
 		return dst
 	case 1:
 		offset := len(dst)
-		dst = slices.Grow(dst, delta.Int64HeaderSize)[:len(dst)+delta.Int64HeaderSize]
+		dst = slices.Grow(dst, delta.HeaderSize)[:len(dst)+delta.HeaderSize]
 		out := dst[offset:]
-		delta.EncodeInt64Header(out, 1, src[0], 0)
+		delta.EncodeHeader(out, 1, src[0], 0)
 		return dst
 	}
 
@@ -51,16 +52,16 @@ func EncodeInt64(dst []byte, src []int64) []byte {
 	}
 
 	packedSize := bitpack.ByteCount(uint((len(encoded) - 1) * bitWidth))
-	totalSize := packedSize + delta.Int64SizeBytes + delta.Int64HeaderSize + bitpack.PaddingInt64
+	totalSize := packedSize + delta.Int64SizeBytes + delta.HeaderSize + bitpack.PaddingInt64
 	offset := len(dst)
 	dst = slices.Grow(dst, totalSize)[:len(dst)+totalSize]
 	out := dst[offset:]
 
-	delta.EncodeInt64Header(out, uint16(len(src)), minVal, uint8(bitWidth))
+	delta.EncodeHeader(out, uint16(len(src)), minVal, uint8(bitWidth))
 
 	// Encode the first value as is and bitpack the rest.
-	binary.LittleEndian.PutUint64(out[delta.Int64HeaderSize:delta.Int64HeaderSize+delta.Int64SizeBytes], uint64(encoded[0]))
-	bitpack.PackInt64(out[delta.Int64HeaderSize+delta.Int64SizeBytes:], encoded[1:], uint(bitWidth))
+	binary.LittleEndian.PutUint64(out[delta.HeaderSize:delta.HeaderSize+delta.Int64SizeBytes], uint64(encoded[0]))
+	bitpack.PackInt64(out[delta.HeaderSize+delta.Int64SizeBytes:], encoded[1:], uint(bitWidth))
 
 	return dst
 }
@@ -70,14 +71,14 @@ func DecodeInt64(dst []int64, src []byte) uint16 {
 		return 0
 	}
 
-	header := delta.DecodeInt64Header(src)
+	header := delta.DecodeHeader(src)
 
 	if header.NumValues == 1 {
 		dst[0] = header.MinVal
 		return 1
 	}
-	dst[0] = int64(binary.LittleEndian.Uint64(src[delta.Int64HeaderSize : delta.Int64HeaderSize+delta.Int64SizeBytes]))
-	bitpack.UnpackInt64(dst[1:header.NumValues], src[delta.Int64HeaderSize+delta.Int64SizeBytes:], uint(header.BitWidth))
+	dst[0] = int64(binary.LittleEndian.Uint64(src[delta.HeaderSize : delta.HeaderSize+delta.Int64SizeBytes]))
+	bitpack.UnpackInt64(dst[1:header.NumValues], src[delta.HeaderSize+delta.Int64SizeBytes:], uint(header.BitWidth))
 
 	numVals := int(header.NumValues)
 	// Bounds check hint
