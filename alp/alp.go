@@ -19,6 +19,13 @@ const (
 	MetadataSize = 23
 )
 
+// Pre-computed powers of 10 for fast lookup
+var powersOf10 = [21]float64{
+	1e-10, 1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1,
+	1e0,
+	1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10,
+}
+
 // EncodingType represents the type of encoding used
 type EncodingType uint8
 
@@ -60,7 +67,7 @@ func Compress(dst []byte, data []float64) []byte {
 
 	// Find best exponent
 	exponent := findBestExponent(data)
-	factor := math.Pow(10, float64(exponent))
+	factor := powersOf10[exponent+10]
 
 	// Convert to integers
 	intValues := encodeToIntegers(data, factor)
@@ -131,18 +138,30 @@ func Decompress(dst []float64, data []byte) int {
 
 	case EncodingALP:
 		result := dst[:metadata.Count]
-		dst := unsafecast.Slice[int64](result)
-		bitpack.UnpackInt64(dst, data[MetadataSize:], uint(metadata.BitWidth))
+		ints := unsafecast.Slice[int64](result)
+		bitpack.UnpackInt64(ints, data[MetadataSize:], uint(metadata.BitWidth))
 
 		minValue := metadata.FrameOfRef
-		for i := range dst {
-			dst[i] += minValue
-		}
+		numValues := metadata.Count
 
-		// Convert back to float64
-		factor := math.Pow(10, float64(metadata.Exponent))
-		for i, v := range dst {
-			result[i] = float64(v) / factor
+		// Use lookup table for power of 10.
+		factor := powersOf10[metadata.Exponent+10]
+
+		// Combined loop: add minValue and convert to float64 in one pass
+		// This reduces memory traffic and allows better optimization
+		i := int32(0)
+		for ; i+3 < numValues; i += 4 {
+			// Bounds check hint for the group of 4
+			_ = ints[i+3]
+			_ = result[i+3]
+
+			result[i] = float64(ints[i]+minValue) / factor
+			result[i+1] = float64(ints[i+1]+minValue) / factor
+			result[i+2] = float64(ints[i+2]+minValue) / factor
+			result[i+3] = float64(ints[i+3]+minValue) / factor
+		}
+		for ; i < numValues; i++ {
+			result[i] = float64(ints[i]+minValue) / factor
 		}
 
 		return int(metadata.Count)
@@ -166,7 +185,7 @@ func findBestExponent(data []float64) int {
 
 	// Try different exponents
 	for exp := MinExponent; exp <= MaxExponent; exp++ {
-		factor := math.Pow(10, float64(exp))
+		factor := powersOf10[exp+10]
 		maxBits := 0
 		valid := true
 
@@ -242,16 +261,11 @@ func DecompressValues(result []float64, src []byte, metadata CompressionMetadata
 		unpacked := unsafecast.Slice[int64](result)
 		bitpack.UnpackInt64(unpacked, packedData, uint(metadata.BitWidth))
 
-		// Reverse frame-of-reference
+		// Reverse frame-of-reference and convert back to float64 in one pass
 		minValue := metadata.FrameOfRef
+		factor := powersOf10[metadata.Exponent+10]
 		for i := range metadata.Count {
-			unpacked[i] = unpacked[i] + minValue
-		}
-
-		// Convert back to float64
-		factor := math.Pow(10, float64(metadata.Exponent))
-		for i, v := range unpacked {
-			result[i] = float64(v) / factor
+			result[i] = float64(unpacked[i]+minValue) / factor
 		}
 	}
 }
