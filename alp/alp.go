@@ -118,9 +118,9 @@ func Compress(dst []byte, data []float64) []byte {
 }
 
 // Decompress decompresses ALP-encoded data
-func Decompress(dst []float64, data []byte) int {
+func Decompress(dst []float64, data []byte) []float64 {
 	if len(data) == 0 {
-		return 0
+		return dst[:0]
 	}
 
 	// Decode metadata
@@ -128,13 +128,13 @@ func Decompress(dst []float64, data []byte) int {
 
 	switch metadata.EncodingType {
 	case EncodingNone:
-		return int(metadata.Count)
+		return dst[:metadata.Count]
 
 	case EncodingConstant:
 		for i := range dst {
 			dst[i] = metadata.ConstantValue
 		}
-		return int(metadata.Count)
+		return dst[:metadata.Count]
 
 	case EncodingALP:
 		result := dst[:metadata.Count]
@@ -164,10 +164,9 @@ func Decompress(dst []float64, data []byte) int {
 			result[i] = float64(ints[i]+minValue) / factor
 		}
 
-		return int(metadata.Count)
-
+		return dst[:metadata.Count]
 	default:
-		return 0
+		return dst[:0]
 	}
 }
 

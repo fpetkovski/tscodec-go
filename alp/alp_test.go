@@ -119,10 +119,10 @@ func TestALPCompression(t *testing.T) {
 
 			// Decompress
 			decompressed := make([]float64, len(tt.data))
-			n := Decompress(decompressed, compressed)
+			decompressed = Decompress(decompressed, compressed)
 
 			// Verify length
-			if len(decompressed[:n]) != len(tt.data) {
+			if len(decompressed) != len(tt.data) {
 				t.Errorf("Length mismatch: got %d, want %d", len(decompressed), len(tt.data))
 			}
 
@@ -150,9 +150,9 @@ func TestALPRandomDataset(t *testing.T) {
 
 	compressed := Compress(nil, data)
 	decompressed := make([]float64, len(data))
-	n := Decompress(decompressed, compressed)
+	decompressed = Decompress(decompressed, compressed)
 
-	if len(decompressed[:n]) != len(data) {
+	if len(decompressed) != len(data) {
 		t.Errorf("Length mismatch: got %d, want %d", len(decompressed), len(data))
 	}
 
@@ -184,8 +184,8 @@ func TestALPLargeDataset(t *testing.T) {
 
 	compressed := Compress(nil, data)
 	decompressed := make([]float64, len(data))
-	n := Decompress(decompressed, compressed)
-	if len(decompressed[:n]) != len(data) {
+	decompressed = Decompress(decompressed, compressed)
+	if len(decompressed) != len(data) {
 		t.Errorf("Length mismatch: got %d, want %d", len(decompressed), len(data))
 	}
 
