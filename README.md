@@ -1,12 +1,14 @@
 # tscodec-go
 
-High-performance timeseries compression codecs for Go, featuring adaptive algorithms optimized for modern CPU architectures.
+High-performance timeseries compression codecs for Go, featuring adaptive algorithms optimized for modern CPU
+architectures.
 
 ## Features
 
 This library implements several state-of-the-art compression algorithms for timeseries data:
 
-- **ALP (Adaptive Lossless floating-Point)** - Lossless compression for float64 values using adaptive scaling and bit-packing
+- **ALP (Adaptive Lossless floating-Point)** - Lossless compression for float64 values using adaptive scaling and
+  bit-packing
 - **Delta Encoding** - First-order delta encoding for int32/int64 values
 - **Delta-of-Delta (DoD)** - Second-order delta encoding for regular timeseries
 - **Bitpacking** - Low-level bit manipulation with architecture-specific optimizations (amd64, arm64)
@@ -33,14 +35,15 @@ alp.Decode(decodedValues[:], compressedValues)
 
 Performance comparison vs Gorilla (XOR) compression from Prometheus (Apple M3, 120 samples):
 
-| Codec | Operation | Time/op | Throughput | Compressed Size | Allocs |
-|-------|-----------|---------|------------|-----------------|--------|
-| Gorilla | Encode | 3321 ns/op | - | 982 bytes | 7 allocs/op |
-| Gorilla | Decode | 1715 ns/op | - | - | 1 allocs/op |
-| ALP+DoD | Encode | **1406 ns/op** | **2.4x faster** | **840 bytes** | 6 allocs/op |
-| ALP+DoD | Decode | **252 ns/op** | **6.8x faster, 3330 MB/s** | - | **0 allocs/op** |
+| Codec   | Operation | Time/op        | Throughput                    | Compressed Size | Allocs          |
+|---------|-----------|----------------|-------------------------------|-----------------|-----------------|
+| Gorilla | Encode    | 3321 ns/op     | 801.99 MB/s                   | 982 bytes       | 7 allocs/op     |
+| Gorilla | Decode    | 1715 ns/op     | 588.06 MB/s                   | -               | 1 allocs/op     |
+| ALP+DoD | Encode    | **1406 ns/op** | **2.4x faster, 1390.80 MB/s** | **840 bytes**   | 6 allocs/op     |
+| ALP+DoD | Decode    | **252 ns/op**  | **6.8x faster, 3330 MB/s**    | -               | **0 allocs/op** |
 
 Run benchmarks:
+
 ```bash
 cd benchmarks
 go test -bench=BenchmarkFloats -benchmem
@@ -62,24 +65,24 @@ go get github.com/fpetkovski/tscodec-go
 package main
 
 import (
-    "fmt"
-    "github.com/fpetkovski/tscodec-go/alp"
+	"fmt"
+	"github.com/fpetkovski/tscodec-go/alp"
 )
 
 func main() {
-    // Original data
-    data := []float64{1.1, 2.2, 3.3, 4.4, 5.5}
-    // Compress
+	// Original data
+	data := []float64{1.1, 2.2, 3.3, 4.4, 5.5}
+	// Compress
 	compressed := make([]byte, 10)
 	compressed = alp.Encode(compressed, data)
 
-    // Decompress
-    decompressed := make([]float64, len(data))
-    alp.Decode(decompressed, compressed)
+	// Decompress
+	decompressed := make([]float64, len(data))
+	alp.Decode(decompressed, compressed)
 
-    // Calculate compression ratio
-    ratio := alp.CompressionRatio(len(data), len(compressed))
-    fmt.Printf("Compression ratio: %.2f%%\n", ratio*100)
+	// Calculate compression ratio
+	ratio := alp.CompressionRatio(len(data), len(compressed))
+	fmt.Printf("Compression ratio: %.2f%%\n", ratio*100)
 }
 ```
 
@@ -89,20 +92,20 @@ func main() {
 package main
 
 import (
-    "github.com/fpetkovski/tscodec-go/delta"
+	"github.com/fpetkovski/tscodec-go/delta"
 )
 
 func main() {
-    // Original data
-    data := []int64{1000, 1001, 1002, 1003, 1004}
+	// Original data
+	data := []int64{1000, 1001, 1002, 1003, 1004}
 
-    // Compress
-    compressed := make([]byte, 0)
-    compressed = delta.EncodeInt64(compressed, data)
+	// Compress
+	compressed := make([]byte, 0)
+	compressed = delta.EncodeInt64(compressed, data)
 
-    // Decompress
-    decompressed := make([]int64, len(data))
-    delta.DecodeInt64(decompressed, compressed)
+	// Decompress
+	decompressed := make([]int64, len(data))
+	delta.DecodeInt64(decompressed, compressed)
 }
 ```
 
@@ -117,6 +120,7 @@ ALP achieves high compression ratios for float64 data through:
 3. **Bit-packing** - Packs values using minimal bit width
 
 **Best for:**
+
 - Sensor data with limited precision
 - Price data with 2-4 decimal places
 - Sequential patterns
@@ -129,6 +133,7 @@ ALP achieves high compression ratios for float64 data through:
 Encodes differences between consecutive values instead of absolute values.
 
 **Best for:**
+
 - Monotonically increasing sequences (timestamps, counters)
 - Values with small differences between consecutive elements
 
@@ -137,6 +142,7 @@ Encodes differences between consecutive values instead of absolute values.
 Applies delta encoding twice, encoding the difference of differences.
 
 **Best for:**
+
 - Highly regular timeseries (e.g., evenly-spaced timestamps)
 - Data with constant or near-constant rate of change
 

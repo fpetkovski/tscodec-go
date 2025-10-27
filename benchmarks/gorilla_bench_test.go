@@ -32,6 +32,7 @@ func BenchmarkFloats(b *testing.B) {
 	b.Run("gorilla", func(b *testing.B) {
 		b.Run("encode", func(b *testing.B) {
 			b.ReportAllocs()
+			b.SetBytes(numSamples * 16)
 
 			for b.Loop() {
 				chk := chunkenc.NewXORChunk()
@@ -53,6 +54,7 @@ func BenchmarkFloats(b *testing.B) {
 			for i := range ts {
 				app.Append(ts[i], vs[i])
 			}
+			b.SetBytes(int64(len(chk.Bytes())))
 			for b.Loop() {
 				it := chk.Iterator(nil)
 				for it.Next() != chunkenc.ValNone {
@@ -65,6 +67,7 @@ func BenchmarkFloats(b *testing.B) {
 	b.Run("alp", func(b *testing.B) {
 		b.Run("encode", func(b *testing.B) {
 			b.ReportAllocs()
+			b.SetBytes(numSamples * 16)
 
 			for b.Loop() {
 				tsc := dod.EncodeInt64(nil, ts)
