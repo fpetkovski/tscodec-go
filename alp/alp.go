@@ -47,74 +47,73 @@ type CompressionMetadata struct {
 }
 
 // Encode compresses an array of float64 values using ALP
-func Encode(dst []byte, data []float64) []byte {
-	if len(data) == 0 {
-		return encodeMetadata(CompressionMetadata{
+func Encode(dst []byte, src []float64) []byte {
+	switch {
+	case len(src) == 0:
+		if cap(dst) < MetadataSize {
+			dst = make([]byte, MetadataSize)
+		}
+		dst = dst[:MetadataSize]
+		encodeMetadata(dst, CompressionMetadata{
 			EncodingType: EncodingNone,
 			Count:        0,
 		})
-	}
-
-	// Check for constant values
-	if isConstant(data) {
-		metadata := CompressionMetadata{
-			EncodingType:  EncodingConstant,
-			Count:         int32(len(data)),
-			ConstantValue: data[0],
+		return dst
+	case isConstant(src):
+		if cap(dst) < MetadataSize {
+			dst = make([]byte, MetadataSize)
 		}
-		return encodeMetadata(metadata)
+		encodeMetadata(dst, CompressionMetadata{
+			EncodingType:  EncodingConstant,
+			Count:         int32(len(src)),
+			ConstantValue: src[0],
+		})
+		return dst
 	}
 
 	// Find best exponent
-	exponent := findBestExponent(data)
+	exponent := findBestExponent(src)
 	factor := powersOf10[exponent+10]
 
 	// Convert to integers
-	intValues := encodeToIntegers(data, factor)
+	forValues := encodeToIntegers(src, factor)
 
 	// Apply frame-of-reference encoding
-	minValue := intValues[0]
-	for _, v := range intValues {
+	minValue := forValues[0]
+	for _, v := range forValues {
 		minValue = min(minValue, v)
 	}
-
-	// Apply frame-of-reference to create adjusted int64 values
-	forValues := make([]int64, len(intValues))
-	for i, v := range intValues {
+	for i, v := range forValues {
 		forValues[i] = v - minValue
 	}
 
-	// Find bit width for signed integers
-	maxBits := 0
+	// Find bit-width for signed integers.
+	bitWidth := 0
 	for _, v := range forValues {
 		bits := CalculateBitWidth(uint64(v))
-		if bits > maxBits {
-			maxBits = bits
-		}
+		bitWidth = max(bitWidth, bits)
 	}
-	bitWidth := maxBits
 
-	// Pack data using signed integer packing
+	// Pack using signed integer packing.
 	packedSize := bitpack.ByteCount(uint(len(forValues)*bitWidth)) + bitpack.PaddingInt64
-	packedData := make([]byte, packedSize)
-	bitpack.PackInt64(packedData, forValues, uint(bitWidth))
+	if cap(dst) < packedSize+MetadataSize {
+		dst = make([]byte, packedSize+MetadataSize)
+	}
+	dst = dst[:packedSize]
+	bitpack.PackInt64(dst[MetadataSize:], forValues, uint(bitWidth))
 
 	// Create metadata
 	metadata := CompressionMetadata{
 		EncodingType: EncodingALP,
-		Count:        int32(len(data)),
+		Count:        int32(len(src)),
 		Exponent:     int8(exponent),
 		BitWidth:     uint8(bitWidth),
 		FrameOfRef:   minValue,
 	}
 
-	// Combine metadata and data
-	metadataBytes := encodeMetadata(metadata)
-	result := make([]byte, len(metadataBytes)+len(packedData))
-	copy(result, metadataBytes)
-	copy(result[len(metadataBytes):], packedData)
-
-	return result
+	// Combine metadata and src
+	encodeMetadata(dst, metadata)
+	return dst
 }
 
 // Decode decompresses ALP-encoded data
@@ -233,9 +232,9 @@ func findBestExponent(data []float64) int {
 }
 
 // encodeToIntegers converts float64 values to integers using the factor
-func encodeToIntegers(data []float64, factor float64) []int64 {
-	result := make([]int64, len(data))
-	for i, v := range data {
+func encodeToIntegers(src []float64, factor float64) []int64 {
+	result := make([]int64, len(src))
+	for i, v := range src {
 		scaled := v * factor
 		result[i] = int64(math.Round(scaled))
 	}
@@ -300,15 +299,13 @@ func isConstant(data []float64) bool {
 }
 
 // encodeMetadata encodes compression metadata to bytes
-func encodeMetadata(metadata CompressionMetadata) []byte {
-	buf := make([]byte, 32)
+func encodeMetadata(buf []byte, metadata CompressionMetadata) {
 	buf[0] = byte(metadata.EncodingType)
 	binary.LittleEndian.PutUint32(buf[1:5], uint32(metadata.Count))
 	buf[5] = byte(metadata.Exponent)
 	buf[6] = metadata.BitWidth
 	binary.LittleEndian.PutUint64(buf[7:15], uint64(metadata.FrameOfRef))
 	binary.LittleEndian.PutUint64(buf[15:23], math.Float64bits(metadata.ConstantValue))
-	return buf[:23]
 }
 
 // DecodeMetadata decodes compression metadata from bytes

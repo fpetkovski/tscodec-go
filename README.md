@@ -35,12 +35,12 @@ alp.Decode(decodedValues[:], compressedValues)
 
 Performance comparison vs Gorilla (XOR) compression from Prometheus (Apple M3, 120 samples):
 
-| Codec   | Operation | Time/op        | Throughput                    | Compressed Size | Allocs          |
-|---------|-----------|----------------|-------------------------------|-----------------|-----------------|
-| Gorilla | Encode    | 3321 ns/op     | 801.99 MB/s                   | 982 bytes       | 7 allocs/op     |
-| Gorilla | Decode    | 1715 ns/op     | 588.06 MB/s                   | -               | 1 allocs/op     |
-| ALP+DoD | Encode    | **1406 ns/op** | **2.4x faster, 1390.80 MB/s** | **840 bytes**   | 6 allocs/op     |
-| ALP+DoD | Decode    | **252 ns/op**  | **6.8x faster, 3330 MB/s**    | -               | **0 allocs/op** |
+| Codec   | Operation | Time/op        | Throughput                  | Compressed Size | Allocs          |
+|---------|-----------|----------------|-----------------------------|-----------------|-----------------|
+| Gorilla | Encode    | 3457 ns/op     | 555 MB/s                    | 992 bytes       | 7 allocs/op     |
+| Gorilla | Decode    | 1744 ns/op     | 569 MB/s                    | -               | 1 allocs/op     |
+| ALP+DoD | Encode    | **1214 ns/op** | **2.8x faster, 1581 MB/s**  | **766 bytes**   | **2 allocs/op** |
+| ALP+DoD | Decode    | **229 ns/op**  | **7.6x faster, 3348 MB/s**  | -               | **0 allocs/op** |
 
 Run benchmarks:
 
@@ -93,20 +93,20 @@ func main() {
 package main
 
 import (
-	"github.com/fpetkovski/tscodec-go/delta"
+  "github.com/fpetkovski/tscodec-go/delta"
 )
 
 func main() {
-	// Original data
-	data := []int64{1000, 1001, 1002, 1003, 1004}
+  // Original data
+  data := []int64{1000, 1001, 1002, 1003, 1004}
 
-	// Compress
-	compressed := make([]byte, 0)
-	compressed = delta.EncodeInt64(compressed, data)
+  // Compress
+  compressed := make([]byte, 0)
+  compressed = delta.EncodeInt64(compressed, data)
 
-	// Decompress
-	decompressed := make([]int64, len(data))
-	delta.DecodeInt64(decompressed, compressed)
+  // Decompress
+  decompressed := make([]int64, len(data))
+  delta.DecodeInt64(decompressed, compressed)
 }
 
 ```
