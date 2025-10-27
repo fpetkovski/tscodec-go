@@ -110,6 +110,10 @@ func TestALPCompression(t *testing.T) {
 			name: "mixed ranges",
 			data: []float64{0.1, 10.0, 100.0, 1000.0, 0.01},
 		},
+		{
+			name: "fuzz",
+			data: []float64{1.398043286095289e-76, 1.398043286095289e-76, 6.378489473675153e+116},
+		},
 	}
 
 	for _, tt := range tests {
