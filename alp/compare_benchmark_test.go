@@ -15,25 +15,25 @@ func BenchmarkCompare_Sequential(b *testing.B) {
 		data[i] = float64(i) * 0.1
 	}
 	compressed := make([]byte, len(data))
-	b.Run("ALP/Compress", func(b *testing.B) {
+	b.Run("ALP/Encode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Compress(compressed, data)
+			_ = Encode(compressed, data)
 		}
 	})
 
-	b.Run("ALP/Decompress", func(b *testing.B) {
+	b.Run("ALP/Decode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
-		compressed := Compress(compressed, data)
+		compressed := Encode(compressed, data)
 		decompressed := make([]float64, len(data))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Decompress(decompressed, compressed)
+			_ = Decode(decompressed, compressed)
 		}
 	})
 
-	b.Run("Zstd/Compress", func(b *testing.B) {
+	b.Run("Zstd/Encode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		dataBytes := float64sToBytes(data)
@@ -43,7 +43,7 @@ func BenchmarkCompare_Sequential(b *testing.B) {
 		}
 	})
 
-	b.Run("Zstd/Decompress", func(b *testing.B) {
+	b.Run("Zstd/Decode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		decoder, _ := zstd.NewReader(nil)
@@ -56,7 +56,7 @@ func BenchmarkCompare_Sequential(b *testing.B) {
 	})
 
 	// Report compression ratios
-	alpCompressed := Compress(compressed, data)
+	alpCompressed := Encode(compressed, data)
 	encoder, _ := zstd.NewWriter(nil)
 	dataBytes := float64sToBytes(data)
 	zstdCompressed := encoder.EncodeAll(dataBytes, make([]byte, 0, len(dataBytes)))
@@ -80,25 +80,25 @@ func BenchmarkCompare_RandomSensor(b *testing.B) {
 		data[i] = math.Round((20.0+randGen.Float64()*10.0)*100) / 100
 	}
 	compressed := make([]byte, len(data))
-	b.Run("ALP/Compress", func(b *testing.B) {
+	b.Run("ALP/Encode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Compress(compressed, data)
+			_ = Encode(compressed, data)
 		}
 	})
 
-	b.Run("ALP/Decompress", func(b *testing.B) {
+	b.Run("ALP/Decode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
-		compressed := Compress(compressed, data)
+		compressed := Encode(compressed, data)
 		decompressed := make([]float64, len(data))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Decompress(decompressed, compressed)
+			_ = Decode(decompressed, compressed)
 		}
 	})
 
-	b.Run("Zstd/Compress", func(b *testing.B) {
+	b.Run("Zstd/Encode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		dataBytes := float64sToBytes(data)
@@ -108,7 +108,7 @@ func BenchmarkCompare_RandomSensor(b *testing.B) {
 		}
 	})
 
-	b.Run("Zstd/Decompress", func(b *testing.B) {
+	b.Run("Zstd/Decode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		decoder, _ := zstd.NewReader(nil)
@@ -121,7 +121,7 @@ func BenchmarkCompare_RandomSensor(b *testing.B) {
 	})
 
 	// Report compression ratios
-	alpCompressed := Compress(compressed, data)
+	alpCompressed := Encode(compressed, data)
 	encoder, _ := zstd.NewWriter(nil)
 	dataBytes := float64sToBytes(data)
 	zstdCompressed := encoder.EncodeAll(dataBytes, make([]byte, 0, len(dataBytes)))
@@ -145,25 +145,25 @@ func BenchmarkCompare_Constant(b *testing.B) {
 		data[i] = 42.5
 	}
 	compressed := make([]byte, len(data))
-	b.Run("ALP/Compress", func(b *testing.B) {
+	b.Run("ALP/Encode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Compress(compressed, data)
+			_ = Encode(compressed, data)
 		}
 	})
 
-	b.Run("ALP/Decompress", func(b *testing.B) {
+	b.Run("ALP/Decode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
-		compressed = Compress(compressed, data)
+		compressed = Encode(compressed, data)
 		decompressed := make([]float64, len(data))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Decompress(decompressed, compressed)
+			_ = Decode(decompressed, compressed)
 		}
 	})
 
-	b.Run("Zstd/Compress", func(b *testing.B) {
+	b.Run("Zstd/Encode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		dataBytes := float64sToBytes(data)
@@ -173,7 +173,7 @@ func BenchmarkCompare_Constant(b *testing.B) {
 		}
 	})
 
-	b.Run("Zstd/Decompress", func(b *testing.B) {
+	b.Run("Zstd/Decode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		decoder, _ := zstd.NewReader(nil)
@@ -186,7 +186,7 @@ func BenchmarkCompare_Constant(b *testing.B) {
 	})
 
 	// Report compression ratios
-	alpCompressed := Compress(compressed, data)
+	alpCompressed := Encode(compressed, data)
 	encoder, _ := zstd.NewWriter(nil)
 	dataBytes := float64sToBytes(data)
 	zstdCompressed := encoder.EncodeAll(dataBytes, make([]byte, 0, len(dataBytes)))
@@ -210,25 +210,25 @@ func BenchmarkCompare_TrulyRandom(b *testing.B) {
 		data[i] = randGen.Float64() * 1e10
 	}
 	compressed := make([]byte, len(data))
-	b.Run("ALP/Compress", func(b *testing.B) {
+	b.Run("ALP/Encode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Compress(compressed, data)
+			_ = Encode(compressed, data)
 		}
 	})
 
-	b.Run("ALP/Decompress", func(b *testing.B) {
+	b.Run("ALP/Decode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
-		compressed := Compress(compressed, data)
+		compressed := Encode(compressed, data)
 		decompressed := make([]float64, len(data))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Decompress(decompressed, compressed)
+			_ = Decode(decompressed, compressed)
 		}
 	})
 
-	b.Run("Zstd/Compress", func(b *testing.B) {
+	b.Run("Zstd/Encode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		dataBytes := float64sToBytes(data)
@@ -238,7 +238,7 @@ func BenchmarkCompare_TrulyRandom(b *testing.B) {
 		}
 	})
 
-	b.Run("Zstd/Decompress", func(b *testing.B) {
+	b.Run("Zstd/Decode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		decoder, _ := zstd.NewReader(nil)
@@ -251,7 +251,7 @@ func BenchmarkCompare_TrulyRandom(b *testing.B) {
 	})
 
 	// Report compression ratios
-	alpCompressed := Compress(compressed, data)
+	alpCompressed := Encode(compressed, data)
 	encoder, _ := zstd.NewWriter(nil)
 	dataBytes := float64sToBytes(data)
 	zstdCompressed := encoder.EncodeAll(dataBytes, make([]byte, 0, len(dataBytes)))
@@ -275,25 +275,25 @@ func BenchmarkCompare_Large(b *testing.B) {
 		data[i] = float64(i) * 0.1
 	}
 	compressed := make([]byte, len(data))
-	b.Run("ALP/Compress", func(b *testing.B) {
+	b.Run("ALP/Encode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Compress(compressed, data)
+			_ = Encode(compressed, data)
 		}
 	})
 
-	b.Run("ALP/Decompress", func(b *testing.B) {
+	b.Run("ALP/Decode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
-		compressed := Compress(compressed, data)
+		compressed := Encode(compressed, data)
 		decompressed := make([]float64, len(data))
 		b.ResetTimer()
 		for b.Loop() {
-			_ = Decompress(decompressed, compressed)
+			_ = Decode(decompressed, compressed)
 		}
 	})
 
-	b.Run("Zstd/Compress", func(b *testing.B) {
+	b.Run("Zstd/Encode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		dataBytes := float64sToBytes(data)
@@ -303,7 +303,7 @@ func BenchmarkCompare_Large(b *testing.B) {
 		}
 	})
 
-	b.Run("Zstd/Decompress", func(b *testing.B) {
+	b.Run("Zstd/Decode", func(b *testing.B) {
 		b.SetBytes(int64(len(data) * 8))
 		encoder, _ := zstd.NewWriter(nil)
 		decoder, _ := zstd.NewReader(nil)
@@ -316,7 +316,7 @@ func BenchmarkCompare_Large(b *testing.B) {
 	})
 
 	// Report compression ratios
-	alpCompressed := Compress(compressed, data)
+	alpCompressed := Encode(compressed, data)
 	encoder, _ := zstd.NewWriter(nil)
 	dataBytes := float64sToBytes(data)
 	zstdCompressed := encoder.EncodeAll(dataBytes, make([]byte, 0, len(dataBytes)))
@@ -361,9 +361,9 @@ func TestComparisonLossless(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test ALP
 			alpCompressed := make([]byte, len(tt.data))
-			alpCompressed = Compress(alpCompressed, tt.data)
+			alpCompressed = Encode(alpCompressed, tt.data)
 			alpDecompressed := make([]float64, len(tt.data))
-			Decompress(alpDecompressed, alpCompressed)
+			Decode(alpDecompressed, alpCompressed)
 
 			for i := range tt.data {
 				if !floatEquals(alpDecompressed[i], tt.data[i]) {

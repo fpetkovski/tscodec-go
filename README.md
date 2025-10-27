@@ -8,8 +8,45 @@ This library implements several state-of-the-art compression algorithms for time
 
 - **ALP (Adaptive Lossless floating-Point)** - Lossless compression for float64 values using adaptive scaling and bit-packing
 - **Delta Encoding** - First-order delta encoding for int32/int64 values
-- **Delta-of-Delta (DoD)** - Second-order delta encoding for highly correlated timeseries
+- **Delta-of-Delta (DoD)** - Second-order delta encoding for regular timeseries
 - **Bitpacking** - Low-level bit manipulation with architecture-specific optimizations (amd64, arm64)
+
+## Benchmarks
+
+Compressing timeseries data with timestamps and float values:
+
+```go
+// Compress 120 samples of timestamps and floats
+timestamps := []int64{...}  // Unix millisecond timestamps
+values := []float64{...}     // Sensor readings, prices, etc.
+
+// Encode using Delta-of-Delta + ALP
+compressedTimestamps := dod.EncodeInt64(nil, timestamps)
+compressedValues := alp.Encode(nil, values)
+
+// Decode back to original data
+var decodedTimestamps [120]int64
+var decodedValues [120]float64
+dod.DecodeInt64(decodedTimestamps[:], compressedTimestamps)
+alp.Decode(decodedValues[:], compressedValues)
+```
+
+Performance comparison vs Gorilla (XOR) compression from Prometheus (Apple M3, 120 samples):
+
+| Codec | Operation | Time/op | Throughput | Compressed Size | Allocs |
+|-------|-----------|---------|------------|-----------------|--------|
+| Gorilla | Encode | 3321 ns/op | - | 982 bytes | 7 allocs/op |
+| Gorilla | Decode | 1715 ns/op | - | - | 1 allocs/op |
+| ALP+DoD | Encode | **1406 ns/op** | **2.4x faster** | **840 bytes** | 6 allocs/op |
+| ALP+DoD | Decode | **252 ns/op** | **6.8x faster, 3330 MB/s** | - | **0 allocs/op** |
+
+Run benchmarks:
+```bash
+cd benchmarks
+go test -bench=BenchmarkFloats -benchmem
+```
+
+See [benchmarks/gorilla_bench_test.go](benchmarks/gorilla_bench_test.go) for implementation details.
 
 ## Installation
 
@@ -34,11 +71,11 @@ func main() {
     data := []float64{1.1, 2.2, 3.3, 4.4, 5.5}
     // Compress
 	compressed := make([]byte, 10)
-	compressed = alp.Compress(compressed, data)
+	compressed = alp.Encode(compressed, data)
 
     // Decompress
     decompressed := make([]float64, len(data))
-    alp.Decompress(decompressed, compressed)
+    alp.Decode(decompressed, compressed)
 
     // Calculate compression ratio
     ratio := alp.CompressionRatio(len(data), len(compressed))

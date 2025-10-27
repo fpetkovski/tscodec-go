@@ -46,8 +46,8 @@ type CompressionMetadata struct {
 	ConstantValue float64
 }
 
-// Compress compresses an array of float64 values using ALP
-func Compress(dst []byte, data []float64) []byte {
+// Encode compresses an array of float64 values using ALP
+func Encode(dst []byte, data []float64) []byte {
 	if len(data) == 0 {
 		return encodeMetadata(CompressionMetadata{
 			EncodingType: EncodingNone,
@@ -117,8 +117,8 @@ func Compress(dst []byte, data []float64) []byte {
 	return result
 }
 
-// Decompress decompresses ALP-encoded data
-func Decompress(dst []float64, data []byte) []float64 {
+// Decode decompresses ALP-encoded data
+func Decode(dst []float64, data []byte) []float64 {
 	if len(data) == 0 {
 		return dst[:0]
 	}
