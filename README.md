@@ -8,10 +8,9 @@ architectures.
 This library implements several state-of-the-art compression algorithms for timeseries data:
 
 - **ALP (Adaptive Lossless floating-Point)** - Lossless compression for float64 values using adaptive scaling and
-  bit-packing
+  bit-packing: https://github.com/cwida/ALP
 - **Delta Encoding** - First-order delta encoding for int32/int64 values
 - **Delta-of-Delta (DoD)** - Second-order delta encoding for regular timeseries
-- **Bitpacking** - Low-level bit manipulation with architecture-specific optimizations (amd64, arm64)
 
 ## Benchmarks
 
