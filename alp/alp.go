@@ -72,7 +72,25 @@ func Encode(dst []byte, src []float64) []byte {
 	}
 
 	// Find best exponent
-	exponent := findBestExponent(src)
+	exponent, valid := findBestExponent(src)
+	if !valid {
+		// No valid exponent found - store raw float64 bytes
+		totalSize := MetadataSize + len(src)*8
+		if cap(dst) < totalSize {
+			dst = make([]byte, totalSize)
+		}
+		dst = dst[:totalSize]
+		encodeMetadata(dst, CompressionMetadata{
+			EncodingType: EncodingNone,
+			Count:        int32(len(src)),
+		})
+		// Store raw float64 bytes after metadata
+		for i, v := range src {
+			binary.LittleEndian.PutUint64(dst[MetadataSize+i*8:], math.Float64bits(v))
+		}
+		return dst
+	}
+	
 	factor := powersOf10[exponent+10]
 
 	// Convert to integers
@@ -125,17 +143,35 @@ func Decode(dst []float64, data []byte) []float64 {
 	// Decode metadata
 	metadata := DecodeMetadata(data)
 
+	// Validate count is within bounds
+	if metadata.Count < 0 || metadata.Count > int32(len(dst)) {
+		return dst[:0]
+	}
+
 	switch metadata.EncodingType {
 	case EncodingNone:
+		// Read raw float64 bytes
+		if len(data) < MetadataSize+int(metadata.Count)*8 {
+			return dst[:0]
+		}
+		for i := range metadata.Count {
+			bits := binary.LittleEndian.Uint64(data[MetadataSize+i*8:])
+			dst[i] = math.Float64frombits(bits)
+		}
 		return dst[:metadata.Count]
 
 	case EncodingConstant:
-		for i := range dst {
+		for i := range metadata.Count {
 			dst[i] = metadata.ConstantValue
 		}
 		return dst[:metadata.Count]
 
 	case EncodingALP:
+		// Validate we have enough data
+		if len(data) < MetadataSize {
+			return dst[:0]
+		}
+		
 		result := dst[:metadata.Count]
 		ints := unsafecast.Slice[int64](result)
 		bitpack.UnpackInt64(ints, data[MetadataSize:], uint(metadata.BitWidth))
@@ -170,9 +206,10 @@ func Decode(dst []float64, data []byte) []float64 {
 }
 
 // findBestExponent analyzes the data and finds the best exponent for encoding
-func findBestExponent(data []float64) int {
+// Returns the exponent and a boolean indicating if a valid encoding was found
+func findBestExponent(data []float64) (int, bool) {
 	if len(data) == 0 {
-		return 0
+		return 0, true
 	}
 
 	// Sample data if too large
@@ -180,6 +217,7 @@ func findBestExponent(data []float64) int {
 
 	bestExponent := 0
 	minBitWidth := 64
+	foundValid := false
 
 	// Try different exponents
 	for exp := MinExponent; exp <= MaxExponent; exp++ {
@@ -193,19 +231,35 @@ func findBestExponent(data []float64) int {
 			original := data[idx]
 			scaled := original * factor
 
+			// Check for overflow, NaN, or Inf
+			if math.IsNaN(scaled) || math.IsInf(scaled, 0) {
+				valid = false
+				break
+			}
+
 			// Check if conversion is lossless
 			rounded := math.Round(scaled)
+			
+			// Check if the rounded value fits in int64 range
+			if rounded > 9.223372036854775807e18 || rounded < -9.223372036854775808e18 {
+				valid = false
+				break
+			}
+			
 			intValue := int64(rounded)
 
 			// Reconstruct and check if lossless using same method as decompression
 			reconstructed := float64(intValue) * invFactor
-			relativeError := math.Abs(original - reconstructed)
+			absError := math.Abs(original - reconstructed)
+			
+			// Use relative error for non-zero values, absolute error for zero
 			if original != 0 {
-				relativeError /= math.Abs(original)
-			}
-
-			if relativeError > 1e-12 {
-				// Not lossless at this exponent - skip this exponent entirely
+				relativeError := absError / math.Abs(original)
+				if relativeError > 1e-12 {
+					valid = false
+					break
+				}
+			} else if absError > 1e-12 {
 				valid = false
 				break
 			}
@@ -225,10 +279,11 @@ func findBestExponent(data []float64) int {
 		if valid && maxBits > 0 && maxBits < minBitWidth {
 			minBitWidth = maxBits
 			bestExponent = exp
+			foundValid = true
 		}
 	}
 
-	return bestExponent
+	return bestExponent, foundValid
 }
 
 // encodeToIntegers converts float64 values to integers using the factor
@@ -236,7 +291,29 @@ func encodeToIntegers(src []float64, factor float64) []int64 {
 	result := make([]int64, len(src))
 	for i, v := range src {
 		scaled := v * factor
-		result[i] = int64(math.Round(scaled))
+		
+		// Check for overflow, NaN, or Inf - clamp to int64 range
+		if math.IsNaN(scaled) || math.IsInf(scaled, 0) {
+			if math.IsInf(scaled, 1) {
+				result[i] = math.MaxInt64
+			} else if math.IsInf(scaled, -1) {
+				result[i] = math.MinInt64
+			} else {
+				result[i] = 0 // NaN case
+			}
+			continue
+		}
+		
+		rounded := math.Round(scaled)
+		
+		// Clamp to int64 range
+		if rounded > 9.223372036854775807e18 {
+			result[i] = math.MaxInt64
+		} else if rounded < -9.223372036854775808e18 {
+			result[i] = math.MinInt64
+		} else {
+			result[i] = int64(rounded)
+		}
 	}
 	return result
 }
@@ -248,17 +325,35 @@ func DecompressValues(result []float64, src []byte, metadata CompressionMetadata
 		return
 	}
 
+	// Validate count is within bounds
+	if metadata.Count < 0 || metadata.Count > int32(len(result)) {
+		return
+	}
+
 	switch metadata.EncodingType {
 	case EncodingNone:
+		// Read raw float64 bytes
+		if len(src) < MetadataSize+int(metadata.Count)*8 {
+			return
+		}
+		for i := range metadata.Count {
+			bits := binary.LittleEndian.Uint64(src[MetadataSize+i*8:])
+			result[i] = math.Float64frombits(bits)
+		}
 	case EncodingConstant:
-		for i := range result {
+		for i := range metadata.Count {
 			result[i] = metadata.ConstantValue
 		}
 	case EncodingALP:
+		// Validate we have enough data
+		if len(src) < MetadataSize {
+			return
+		}
+		
 		// Unpack src
 		packedData := src[MetadataSize:]
 		unpacked := unsafecast.Slice[int64](result)
-		bitpack.UnpackInt64(unpacked, packedData, uint(metadata.BitWidth))
+		bitpack.UnpackInt64(unpacked[:metadata.Count], packedData, uint(metadata.BitWidth))
 
 		// Reverse frame-of-reference and convert back to float64 in one pass
 		minValue := metadata.FrameOfRef
