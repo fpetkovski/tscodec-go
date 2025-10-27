@@ -38,8 +38,8 @@ Performance comparison vs Gorilla (XOR) compression from Prometheus (Apple M3, 1
 |---------|-----------|----------------|-----------------------------|-----------------|-----------------|
 | Gorilla | Encode    | 3457 ns/op     | 555 MB/s                    | 992 bytes       | 7 allocs/op     |
 | Gorilla | Decode    | 1744 ns/op     | 569 MB/s                    | -               | 1 allocs/op     |
-| ALP+DoD | Encode    | **1214 ns/op** | **2.8x faster, 1581 MB/s**  | **766 bytes**   | **2 allocs/op** |
-| ALP+DoD | Decode    | **229 ns/op**  | **7.6x faster, 3348 MB/s**  | -               | **0 allocs/op** |
+| ALP+DoD | Encode    | **1214 ns/op** | **1581 MB/s, 2.8x faster**  | **766 bytes**   | **2 allocs/op** |
+| ALP+DoD | Decode    | **229 ns/op**  | **3348 MB/s, 7.6x faster**  | -               | **0 allocs/op** |
 
 Run benchmarks:
 
