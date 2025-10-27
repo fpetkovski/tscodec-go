@@ -78,12 +78,13 @@ func main() {
 
 	// Decompress
 	decompressed := make([]float64, len(data))
-	alp.Decode(decompressed, compressed)
+	decompressed = alp.Decode(decompressed, compressed)
 
 	// Calculate compression ratio
 	ratio := alp.CompressionRatio(len(data), len(compressed))
 	fmt.Printf("Compression ratio: %.2f%%\n", ratio*100)
 }
+
 ```
 
 ### Delta Encoding (Int64)
@@ -107,6 +108,7 @@ func main() {
 	decompressed := make([]int64, len(data))
 	delta.DecodeInt64(decompressed, compressed)
 }
+
 ```
 
 ## Algorithms
