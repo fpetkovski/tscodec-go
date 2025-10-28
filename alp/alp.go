@@ -2,6 +2,7 @@ package alp
 
 import (
 	"encoding/binary"
+	"errors"
 	"math"
 
 	"github.com/parquet-go/bitpack"
@@ -35,6 +36,8 @@ const (
 	EncodingConstant     EncodingType = 2
 	EncodingUncompressed EncodingType = 3
 )
+
+var ErrInvalidEncoding = errors.New("invalid encoding")
 
 // CompressionMetadata contains metadata about the compressed data
 type CompressionMetadata struct {
@@ -164,68 +167,6 @@ func Decode(dst []float64, data []byte) []float64 {
 		}
 
 		return dst[:metadata.Count]
-	default:
-		return dst[:0]
-	}
-}
-
-// DecodeRange decompresses a range of ALP-encoded data from [start, end)
-// Returns dst containing only the decoded values in the specified range
-func DecodeRange(dst []float64, data []byte, start, end int) []float64 {
-	if len(data) == 0 {
-		return dst[:0]
-	}
-
-	// Decode metadata
-	metadata := DecodeMetadata(data)
-
-	// Validate range
-	if start < 0 || end > int(metadata.Count) || start >= end {
-		return dst[:0]
-	}
-
-	rangeSize := end - start
-
-	switch metadata.EncodingType {
-	case EncodingNone:
-		return dst[:rangeSize]
-
-	case EncodingConstant:
-		result := dst[:rangeSize]
-		for i := range result {
-			result[i] = metadata.ConstantValue
-		}
-		return result
-
-	case EncodingALP:
-		// Unpack all values (simpler approach - can be optimized later)
-		allInts := make([]int64, metadata.Count)
-		bitpack.UnpackInt64(allInts, data[MetadataSize:], uint(metadata.BitWidth))
-
-		// Extract the range we want
-		relevantInts := allInts[start:end]
-
-		minValue := metadata.FrameOfRef
-		invFactor := powersOf10[(10-metadata.Exponent+21)%21]
-
-		result := dst[:rangeSize]
-
-		// Convert to float64
-		i := 0
-		for ; i+3 < rangeSize; i += 4 {
-			_ = relevantInts[i+3]
-			_ = result[i+3]
-
-			result[i] = float64(relevantInts[i]+minValue) * invFactor
-			result[i+1] = float64(relevantInts[i+1]+minValue) * invFactor
-			result[i+2] = float64(relevantInts[i+2]+minValue) * invFactor
-			result[i+3] = float64(relevantInts[i+3]+minValue) * invFactor
-		}
-		for ; i < rangeSize; i++ {
-			result[i] = float64(relevantInts[i]+minValue) * invFactor
-		}
-
-		return result
 	default:
 		return dst[:0]
 	}

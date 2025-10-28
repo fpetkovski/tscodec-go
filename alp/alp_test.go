@@ -1,6 +1,7 @@
 package alp
 
 import (
+	"io"
 	"math"
 	"testing"
 
@@ -255,160 +256,158 @@ func BitPackedSize(numValues uint32, bitWidth uint) int {
 
 func TestDecodeRange(t *testing.T) {
 	tests := []struct {
-		name  string
-		data  []float64
-		start int
-		end   int
+		name      string
+		data      []float64
+		blockSize int
+		bufSize   int
 	}{
 		{
-			name:  "middle section",
-			data:  []float64{1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9, 10.0},
-			start: 3,
-			end:   7,
+			name:      "smaller read buffer than values",
+			data:      []float64{6, 2, 3, 4, 5, 6},
+			blockSize: 120,
+			bufSize:   3,
 		},
 		{
-			name:  "from start",
-			data:  []float64{1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9, 10.0},
-			start: 0,
-			end:   5,
+			name:      "smaller read buffer than values",
+			data:      []float64{1, 2, 3, 4, 5, 6},
+			blockSize: 120,
+			bufSize:   3,
 		},
 		{
-			name:  "to end",
-			data:  []float64{1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9, 10.0},
-			start: 5,
-			end:   10,
+			name:      "smaller read buffer than values",
+			data:      []float64{1.1, 2.2, 3.2, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9, 10.0},
+			blockSize: 120,
+			bufSize:   3,
 		},
 		{
-			name:  "entire range",
-			data:  []float64{1.1, 2.2, 3.3, 4.4, 5.5},
-			start: 0,
-			end:   5,
-		},
-		{
-			name:  "single value",
-			data:  []float64{1.1, 2.2, 3.3, 4.4, 5.5},
-			start: 2,
-			end:   3,
-		},
-		{
-			name:  "constant values middle",
-			data:  []float64{5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0},
-			start: 2,
-			end:   6,
-		},
-		{
-			name:  "negative values range",
-			data:  []float64{-10.5, -5.5, 0.0, 5.5, 10.5, 15.5, 20.5},
-			start: 1,
-			end:   5,
-		},
-		{
-			name:  "small decimals range",
-			data:  []float64{0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008},
-			start: 2,
-			end:   6,
-		},
-		{
-			name:  "large dataset middle section",
-			data:  func() []float64 {
-				result := make([]float64, 1000)
-				for i := range result {
-					result[i] = float64(i) * 0.1
-				}
-				return result
-			}(),
-			start: 400,
-			end:   600,
+			name:      "read buffer multiple of values",
+			data:      []float64{1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8},
+			blockSize: 120,
+			bufSize:   4,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Encode the full dataset
-			compressed := Encode(nil, tt.data)
+			// Encode with StreamEncoder
+			encoder := StreamEncoder{}
+			encoder.Reset(tt.blockSize)
+			encoder.Encode(tt.data)
+			compressed := encoder.Flush()
 
-			// Decode the full dataset for reference
-			fullDecoded := make([]float64, len(tt.data))
-			fullDecoded = Decode(fullDecoded, compressed)
+			// Decode with StreamDecoder
+			decoder := StreamDecoder{}
+			decoder.Reset(compressed, tt.blockSize)
 
-			// Decode the range
-			rangeSize := tt.end - tt.start
-			rangeDecoded := make([]float64, rangeSize)
-			rangeDecoded = DecodeRange(rangeDecoded, compressed, tt.start, tt.end)
+			fullDecoded := make([]float64, 0, len(tt.data))
+			readBuf := make([]float64, tt.bufSize)
 
-			// Verify length
-			if len(rangeDecoded) != rangeSize {
-				t.Errorf("Length mismatch: got %d, want %d", len(rangeDecoded), rangeSize)
-			}
-
-			// Verify values match the corresponding section of full decode
-			for i := 0; i < rangeSize; i++ {
-				originalIdx := tt.start + i
-				if math.Abs(rangeDecoded[i]-fullDecoded[originalIdx]) > 1e-10 {
-					t.Errorf("Value mismatch at range index %d (original index %d): got %f, want %f",
-						i, originalIdx, rangeDecoded[i], fullDecoded[originalIdx])
+			for {
+				readBuf, err := decoder.Decode(readBuf)
+				if err != io.EOF {
+					if err != nil {
+						t.Fatalf("unexpected error %v", err)
+					}
+				}
+				fullDecoded = append(fullDecoded, readBuf...)
+				if err == io.EOF {
+					break
 				}
 			}
+			// Verify length
+			if len(fullDecoded) != len(tt.data) {
+				t.Fatalf("length mismatch: got %d, want %d", len(fullDecoded), len(tt.data))
+			}
 
-			// Also verify against original data
-			for i := 0; i < rangeSize; i++ {
-				originalIdx := tt.start + i
-				if math.Abs(rangeDecoded[i]-tt.data[originalIdx]) > 1e-10 {
-					t.Errorf("Value mismatch against original at range index %d (original index %d): got %f, want %f",
-						i, originalIdx, rangeDecoded[i], tt.data[originalIdx])
+			// Verify values with tolerance
+			for i := range tt.data {
+				if math.Abs(fullDecoded[i]-tt.data[i]) > 1e-10 {
+					t.Errorf("value mismatch at index %d: got %f, want %f", i, fullDecoded[i], tt.data[i])
 				}
 			}
 		})
 	}
 }
 
-func TestDecodeRangeEdgeCases(t *testing.T) {
-	data := []float64{1.1, 2.2, 3.3, 4.4, 5.5}
-	compressed := Encode(nil, data)
-
+func TestStreamEncoderDecoder(t *testing.T) {
 	tests := []struct {
-		name          string
-		start         int
-		end           int
-		expectedLen   int
+		name       string
+		data       []float64
+		blockSize  int
+		readBuffer int
 	}{
 		{
-			name:        "invalid range: start >= end",
-			start:       5,
-			end:         3,
-			expectedLen: 0,
+			name:       "small dataset",
+			data:       []float64{1, 2, 3, 4, 5, 6},
+			blockSize:  120,
+			readBuffer: 3,
 		},
 		{
-			name:        "invalid range: start < 0",
-			start:       -1,
-			end:         3,
-			expectedLen: 0,
+			name:       "single block",
+			data:       []float64{1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8},
+			blockSize:  120,
+			readBuffer: 2,
 		},
 		{
-			name:        "invalid range: end > count",
-			start:       0,
-			end:         10,
-			expectedLen: 0,
+			name:       "multiple blocks different ranges",
+			data:       []float64{1, 2, 3, 100, 101, 102, 1000, 1001, 1002},
+			blockSize:  3,
+			readBuffer: 2,
+		},
+		{
+			name: "large dataset",
+			data: func() []float64 {
+				data := make([]float64, 1000)
+				for i := range data {
+					data[i] = float64(i) * 0.1
+				}
+				return data
+			}(),
+			blockSize:  120,
+			readBuffer: 50,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dst := make([]float64, 10)
-			result := DecodeRange(dst, compressed, tt.start, tt.end)
-			if len(result) != tt.expectedLen {
-				t.Errorf("Expected length %d, got %d", tt.expectedLen, len(result))
+			// Encode
+			encoder := StreamEncoder{}
+			encoder.Reset(tt.blockSize)
+			encoder.Encode(tt.data)
+			compressed := encoder.Flush()
+
+			t.Logf("Original size: %d bytes, Compressed size: %d bytes, Ratio: %.2f%%",
+				len(tt.data)*8, len(compressed), float64(len(compressed))/float64(len(tt.data)*8)*100)
+
+			// Decode
+			decoder := StreamDecoder{}
+			decoder.Reset(compressed, tt.blockSize)
+
+			decoded := make([]float64, 0, len(tt.data))
+			readBuf := make([]float64, tt.readBuffer)
+
+			for {
+				result, err := decoder.Decode(readBuf)
+				decoded = append(decoded, result...)
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			}
+
+			// Verify length
+			if len(decoded) != len(tt.data) {
+				t.Fatalf("length mismatch: got %d, want %d", len(decoded), len(tt.data))
+			}
+
+			// Verify values
+			for i := range tt.data {
+				if math.Abs(decoded[i]-tt.data[i]) > 1e-10 {
+					t.Errorf("value mismatch at index %d: got %f, want %f", i, decoded[i], tt.data[i])
+				}
 			}
 		})
 	}
-
-	// Test empty data
-	t.Run("empty data", func(t *testing.T) {
-		emptyCompressed := Encode(nil, []float64{})
-		dst := make([]float64, 10)
-		result := DecodeRange(dst, emptyCompressed, 0, 0)
-		if len(result) != 0 {
-			t.Errorf("Expected empty result, got length %d", len(result))
-		}
-	})
 }

@@ -1,6 +1,7 @@
 package benchmarks
 
 import (
+	"io"
 	"math/rand/v2"
 	"testing"
 	"time"
@@ -73,8 +74,8 @@ func BenchmarkFloats(b *testing.B) {
 			fsc := make([]byte, numSamples*8)
 
 			for b.Loop() {
-				tsc = dod.EncodeInt64(tsc, ts)
-				fsc = alp.Encode(fsc, vs)
+				tsc = dod.EncodeInt64(tsc[:0], ts)
+				fsc = alp.Encode(fsc[:0], vs)
 
 				b.ReportMetric(float64(len(tsc)+len(fsc)), "compressed_bytes")
 			}
@@ -95,11 +96,31 @@ func BenchmarkFloats(b *testing.B) {
 				_ = alp.Decode(floats[:], fsc)
 			}
 		})
-		b.Run("alp-decode-chunked", func(b *testing.B) {
+	})
+	b.Run("alp-stream", func(b *testing.B) {
+		b.Run("encode", func(b *testing.B) {
+			b.SetBytes(numSamples * 16)
 			b.ReportAllocs()
 
+			alpEncoder := alp.StreamEncoder{}
+			for b.Loop() {
+				alpEncoder.Reset(16)
+
+				tsc := dod.EncodeInt64(nil, ts)
+				alpEncoder.Encode(vs)
+				fsc := alpEncoder.Flush()
+				b.ReportMetric(float64(len(tsc)+len(fsc)), "compressed_bytes")
+			}
+		})
+		b.Run("decode", func(b *testing.B) {
+			b.ReportAllocs()
+
+			alpEncoder := alp.StreamEncoder{}
+			alpEncoder.Reset(8)
+
 			tsc := dod.EncodeInt64(nil, ts)
-			fsc := alp.Encode(nil, vs)
+			alpEncoder.Encode(vs)
+			fsc := alpEncoder.Flush()
 			b.SetBytes(int64(len(fsc) + len(tsc)))
 
 			const chunkSize = 10
@@ -107,14 +128,20 @@ func BenchmarkFloats(b *testing.B) {
 				ints      dod.Int64Block
 				floatsDst [chunkSize]float64
 			)
+
+			alpDecoder := alp.StreamDecoder{}
 			for b.Loop() {
 				_ = dod.DecodeInt64(ints[:], tsc)
-				for start := 0; start < numSamples; start += chunkSize {
-					end := start + chunkSize
-					if end > numSamples {
-						end = numSamples
+				alpDecoder.Reset(fsc, 8)
+
+				for {
+					_, err := alpDecoder.Decode(floatsDst[:])
+					if err == io.EOF {
+						break
 					}
-					_ = alp.DecodeRange(floatsDst[:end-start], fsc, start, end)
+					if err != nil {
+						b.Fatal(err)
+					}
 				}
 			}
 		})
