@@ -95,5 +95,28 @@ func BenchmarkFloats(b *testing.B) {
 				_ = alp.Decode(floats[:], fsc)
 			}
 		})
+		b.Run("alp-decode-chunked", func(b *testing.B) {
+			b.ReportAllocs()
+
+			tsc := dod.EncodeInt64(nil, ts)
+			fsc := alp.Encode(nil, vs)
+			b.SetBytes(int64(len(fsc) + len(tsc)))
+
+			const chunkSize = 10
+			var (
+				ints      dod.Int64Block
+				floatsDst [chunkSize]float64
+			)
+			for b.Loop() {
+				_ = dod.DecodeInt64(ints[:], tsc)
+				for start := 0; start < numSamples; start += chunkSize {
+					end := start + chunkSize
+					if end > numSamples {
+						end = numSamples
+					}
+					_ = alp.DecodeRange(floatsDst[:end-start], fsc, start, end)
+				}
+			}
+		})
 	})
 }

@@ -252,3 +252,163 @@ func UnpackInt64Array(data []byte, count int, bitWidth uint) []int64 {
 func BitPackedSize(numValues uint32, bitWidth uint) int {
 	return bitpack.ByteCount(uint(numValues)*bitWidth) + bitpack.PaddingInt64
 }
+
+func TestDecodeRange(t *testing.T) {
+	tests := []struct {
+		name  string
+		data  []float64
+		start int
+		end   int
+	}{
+		{
+			name:  "middle section",
+			data:  []float64{1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9, 10.0},
+			start: 3,
+			end:   7,
+		},
+		{
+			name:  "from start",
+			data:  []float64{1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9, 10.0},
+			start: 0,
+			end:   5,
+		},
+		{
+			name:  "to end",
+			data:  []float64{1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9, 10.0},
+			start: 5,
+			end:   10,
+		},
+		{
+			name:  "entire range",
+			data:  []float64{1.1, 2.2, 3.3, 4.4, 5.5},
+			start: 0,
+			end:   5,
+		},
+		{
+			name:  "single value",
+			data:  []float64{1.1, 2.2, 3.3, 4.4, 5.5},
+			start: 2,
+			end:   3,
+		},
+		{
+			name:  "constant values middle",
+			data:  []float64{5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0},
+			start: 2,
+			end:   6,
+		},
+		{
+			name:  "negative values range",
+			data:  []float64{-10.5, -5.5, 0.0, 5.5, 10.5, 15.5, 20.5},
+			start: 1,
+			end:   5,
+		},
+		{
+			name:  "small decimals range",
+			data:  []float64{0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008},
+			start: 2,
+			end:   6,
+		},
+		{
+			name:  "large dataset middle section",
+			data:  func() []float64 {
+				result := make([]float64, 1000)
+				for i := range result {
+					result[i] = float64(i) * 0.1
+				}
+				return result
+			}(),
+			start: 400,
+			end:   600,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Encode the full dataset
+			compressed := Encode(nil, tt.data)
+
+			// Decode the full dataset for reference
+			fullDecoded := make([]float64, len(tt.data))
+			fullDecoded = Decode(fullDecoded, compressed)
+
+			// Decode the range
+			rangeSize := tt.end - tt.start
+			rangeDecoded := make([]float64, rangeSize)
+			rangeDecoded = DecodeRange(rangeDecoded, compressed, tt.start, tt.end)
+
+			// Verify length
+			if len(rangeDecoded) != rangeSize {
+				t.Errorf("Length mismatch: got %d, want %d", len(rangeDecoded), rangeSize)
+			}
+
+			// Verify values match the corresponding section of full decode
+			for i := 0; i < rangeSize; i++ {
+				originalIdx := tt.start + i
+				if math.Abs(rangeDecoded[i]-fullDecoded[originalIdx]) > 1e-10 {
+					t.Errorf("Value mismatch at range index %d (original index %d): got %f, want %f",
+						i, originalIdx, rangeDecoded[i], fullDecoded[originalIdx])
+				}
+			}
+
+			// Also verify against original data
+			for i := 0; i < rangeSize; i++ {
+				originalIdx := tt.start + i
+				if math.Abs(rangeDecoded[i]-tt.data[originalIdx]) > 1e-10 {
+					t.Errorf("Value mismatch against original at range index %d (original index %d): got %f, want %f",
+						i, originalIdx, rangeDecoded[i], tt.data[originalIdx])
+				}
+			}
+		})
+	}
+}
+
+func TestDecodeRangeEdgeCases(t *testing.T) {
+	data := []float64{1.1, 2.2, 3.3, 4.4, 5.5}
+	compressed := Encode(nil, data)
+
+	tests := []struct {
+		name          string
+		start         int
+		end           int
+		expectedLen   int
+	}{
+		{
+			name:        "invalid range: start >= end",
+			start:       5,
+			end:         3,
+			expectedLen: 0,
+		},
+		{
+			name:        "invalid range: start < 0",
+			start:       -1,
+			end:         3,
+			expectedLen: 0,
+		},
+		{
+			name:        "invalid range: end > count",
+			start:       0,
+			end:         10,
+			expectedLen: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dst := make([]float64, 10)
+			result := DecodeRange(dst, compressed, tt.start, tt.end)
+			if len(result) != tt.expectedLen {
+				t.Errorf("Expected length %d, got %d", tt.expectedLen, len(result))
+			}
+		})
+	}
+
+	// Test empty data
+	t.Run("empty data", func(t *testing.T) {
+		emptyCompressed := Encode(nil, []float64{})
+		dst := make([]float64, 10)
+		result := DecodeRange(dst, emptyCompressed, 0, 0)
+		if len(result) != 0 {
+			t.Errorf("Expected empty result, got length %d", len(result))
+		}
+	})
+}
