@@ -1,6 +1,7 @@
 package alp
 
 import (
+	"io"
 	"math"
 	"testing"
 
@@ -238,17 +239,169 @@ func TestFindMaxBitWidth(t *testing.T) {
 // PackInt64Array packs an array of uint64 values with the same bit width
 func PackInt64Array(values []int64, bitWidth uint) []byte {
 	dst := make([]byte, BitPackedSize(uint32(len(values)), bitWidth))
-	bitpack.PackInt64(dst, values, bitWidth)
+	bitpack.Pack(dst, values, bitWidth)
 	return dst
 }
 
 // UnpackInt64Array unpacks an array of int64 values
 func UnpackInt64Array(data []byte, count int, bitWidth uint) []int64 {
 	dst := make([]int64, count)
-	bitpack.UnpackInt64(dst, data, bitWidth)
+	bitpack.Unpack(dst, data, bitWidth)
 	return dst
 }
 
 func BitPackedSize(numValues uint32, bitWidth uint) int {
 	return bitpack.ByteCount(uint(numValues)*bitWidth) + bitpack.PaddingInt64
+}
+
+func TestDecodeRange(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      []float64
+		blockSize int
+		bufSize   int
+	}{
+		{
+			name:      "smaller read buffer than values",
+			data:      []float64{6, 2, 3, 4, 5, 6},
+			blockSize: 120,
+			bufSize:   3,
+		},
+		{
+			name:      "smaller read buffer than values",
+			data:      []float64{1, 2, 3, 4, 5, 6},
+			blockSize: 120,
+			bufSize:   3,
+		},
+		{
+			name:      "smaller read buffer than values",
+			data:      []float64{1.1, 2.2, 3.2, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9, 10.0},
+			blockSize: 120,
+			bufSize:   3,
+		},
+		{
+			name:      "read buffer multiple of values",
+			data:      []float64{1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8},
+			blockSize: 120,
+			bufSize:   4,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Encode with StreamEncode
+			compressed := StreamEncode(nil, tt.data, tt.blockSize)
+
+			// Decode with StreamDecoder
+			decoder := StreamDecoder{}
+			decoder.Reset(compressed, tt.blockSize)
+
+			fullDecoded := make([]float64, 0, len(tt.data))
+			readBuf := make([]float64, tt.bufSize)
+
+			for {
+				readBuf, err := decoder.Decode(readBuf)
+				if err != io.EOF {
+					if err != nil {
+						t.Fatalf("unexpected error %v", err)
+					}
+				}
+				fullDecoded = append(fullDecoded, readBuf...)
+				if err == io.EOF {
+					break
+				}
+			}
+			// Verify length
+			if len(fullDecoded) != len(tt.data) {
+				t.Fatalf("length mismatch: got %d, want %d", len(fullDecoded), len(tt.data))
+			}
+
+			// Verify values with tolerance
+			for i := range tt.data {
+				if math.Abs(fullDecoded[i]-tt.data[i]) > 1e-10 {
+					t.Errorf("value mismatch at index %d: got %f, want %f", i, fullDecoded[i], tt.data[i])
+				}
+			}
+		})
+	}
+}
+
+func TestStreamEncoderDecoder(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      []float64
+		blockSize int
+	}{
+		{
+			name:      "small dataset",
+			data:      []float64{1, 2, 3, 4, 5, 6},
+			blockSize: 3,
+		},
+		{
+			name:      "small dataset uneven block size",
+			data:      []float64{1, 2, 3, 4, 5},
+			blockSize: 3,
+		},
+		{
+			name:      "single block",
+			data:      []float64{1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8},
+			blockSize: 120,
+		},
+		{
+			name:      "multiple blocks different ranges",
+			data:      []float64{1, 2, 3, 100, 101, 102, 1000, 1001, 1002},
+			blockSize: 3,
+		},
+		{
+			name: "large dataset",
+			data: func() []float64 {
+				data := make([]float64, 1000)
+				for i := range data {
+					data[i] = float64(i) * 0.1
+				}
+				return data
+			}(),
+			blockSize: 120,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Encode
+			compressed := StreamEncode(nil, tt.data, tt.blockSize)
+
+			t.Logf("Original size: %d bytes, Compressed size: %d bytes, Ratio: %.2f%%",
+				len(tt.data)*8, len(compressed), float64(len(compressed))/float64(len(tt.data)*8)*100)
+
+			// Decode
+			decoder := StreamDecoder{}
+			decoder.Reset(compressed, tt.blockSize)
+
+			decoded := make([]float64, 0, len(tt.data))
+			readBuf := make([]float64, tt.blockSize)
+
+			for {
+				result, err := decoder.Decode(readBuf)
+				decoded = append(decoded, result...)
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			}
+
+			// Verify length
+			if len(decoded) != len(tt.data) {
+				t.Fatalf("length mismatch: got %d, want %d", len(decoded), len(tt.data))
+			}
+
+			// Verify values
+			for i := range tt.data {
+				if math.Abs(decoded[i]-tt.data[i]) > 1e-10 {
+					t.Errorf("value mismatch at index %d: got %f, want %f", i, decoded[i], tt.data[i])
+				}
+			}
+		})
+	}
 }

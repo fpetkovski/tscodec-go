@@ -2,6 +2,7 @@ package alp
 
 import (
 	"encoding/binary"
+	"errors"
 	"math"
 
 	"github.com/parquet-go/bitpack"
@@ -35,6 +36,8 @@ const (
 	EncodingConstant     EncodingType = 2
 	EncodingUncompressed EncodingType = 3
 )
+
+var ErrInvalidEncoding = errors.New("invalid encoding")
 
 // CompressionMetadata contains metadata about the compressed data
 type CompressionMetadata struct {
@@ -100,7 +103,7 @@ func Encode(dst []byte, src []float64) []byte {
 		dst = make([]byte, packedSize+MetadataSize)
 	}
 	dst = dst[:packedSize]
-	bitpack.PackInt64(dst[MetadataSize:], forValues, uint(bitWidth))
+	bitpack.Pack(dst[MetadataSize:], forValues, uint(bitWidth))
 
 	// Create metadata
 	metadata := CompressionMetadata{
@@ -138,7 +141,7 @@ func Decode(dst []float64, data []byte) []float64 {
 	case EncodingALP:
 		result := dst[:metadata.Count]
 		ints := unsafecast.Slice[int64](result)
-		bitpack.UnpackInt64(ints, data[MetadataSize:], uint(metadata.BitWidth))
+		bitpack.Unpack(ints, data[MetadataSize:], uint(metadata.BitWidth))
 
 		minValue := metadata.FrameOfRef
 		numValues := metadata.Count
@@ -258,7 +261,7 @@ func DecompressValues(result []float64, src []byte, metadata CompressionMetadata
 		// Unpack src
 		packedData := src[MetadataSize:]
 		unpacked := unsafecast.Slice[int64](result)
-		bitpack.UnpackInt64(unpacked, packedData, uint(metadata.BitWidth))
+		bitpack.Unpack(unpacked, packedData, uint(metadata.BitWidth))
 
 		// Reverse frame-of-reference and convert back to float64 in one pass
 		minValue := metadata.FrameOfRef

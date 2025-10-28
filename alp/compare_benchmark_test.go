@@ -405,3 +405,65 @@ func bytesToFloat64s(data []byte) []float64 {
 	}
 	return result
 }
+
+// Benchmark comparing regular ALP vs StreamEncoder with configurable block size
+func BenchmarkCompare_StreamVsRegular(b *testing.B) {
+	sizes := []int{1000, 10000}
+	blockSize := 120
+
+	patterns := map[string]func(int) []float64{
+		"Sequential": func(size int) []float64 {
+			data := make([]float64, size)
+			for i := range data {
+				data[i] = float64(i) * 0.1
+			}
+			return data
+		},
+		"Random": func(size int) []float64 {
+			data := make([]float64, size)
+			for i := range data {
+				data[i] = randGen.Float64() * 1000
+			}
+			return data
+		},
+		"MixedRanges": func(size int) []float64 {
+			data := make([]float64, size)
+			for i := range data {
+				if i%100 < 33 {
+					data[i] = float64(i % 10)
+				} else if i%100 < 66 {
+					data[i] = float64(i % 1000)
+				} else {
+					data[i] = float64(i % 100000)
+				}
+			}
+			return data
+		},
+	}
+
+	for patternName, generator := range patterns {
+		b.Logf("\n### Pattern: %s ###", patternName)
+		for _, size := range sizes {
+			data := generator(size)
+
+			// Regular ALP
+			regularCompressed := Encode(nil, data)
+
+			// StreamEncode with configured block size
+			streamCompressed := StreamEncode(nil, data, blockSize)
+
+			overhead := len(streamCompressed) - len(regularCompressed)
+			overheadPercent := float64(overhead) / float64(len(regularCompressed)) * 100
+
+			b.Logf("Size %5d: Regular=%d bytes (%.2f%%), Stream=%d bytes (%.2f%%, blockSize=%d), overhead=%+d bytes (%+.1f%%)",
+				size,
+				len(regularCompressed),
+				float64(len(regularCompressed))/float64(size*8)*100,
+				len(streamCompressed),
+				float64(len(streamCompressed))/float64(size*8)*100,
+				blockSize,
+				overhead,
+				overheadPercent)
+		}
+	}
+}
