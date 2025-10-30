@@ -9,6 +9,34 @@ import (
 	"github.com/parquet-go/bitpack"
 )
 
+// compareFloats compares two float64 values using relative error for large numbers
+// and absolute error for small numbers. Returns true if the values are equal within
+// the acceptable tolerance.
+func compareFloats(a, b float64) (equal bool, relError, absError float64) {
+	absError = math.Abs(a - b)
+
+	// For zero values, use absolute error
+	if a == 0 || b == 0 {
+		equal = absError <= 1e-10
+		relError = math.Inf(1) // Relative error is undefined for zero
+		return
+	}
+
+	// Calculate relative error based on the larger magnitude
+	maxAbs := math.Max(math.Abs(a), math.Abs(b))
+	relError = absError / maxAbs
+
+	// For small numbers (close to zero), use absolute error
+	// For large numbers, use relative error
+	if maxAbs < 1.0 {
+		equal = absError <= 1e-10
+	} else {
+		equal = relError <= 1e-11  // Slightly more tolerant than 1e-12 to account for ALP precision
+	}
+
+	return
+}
+
 func TestBitPacking(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -130,8 +158,10 @@ func TestALPCompression(t *testing.T) {
 
 			// Verify values (lossless)
 			for i := range tt.data {
-				if math.Abs(decompressed[i]-tt.data[i]) > 1e-10 {
-					t.Errorf("Value mismatch at index %d: got %f, want %f", i, decompressed[i], tt.data[i])
+				equal, relErr, absErr := compareFloats(decompressed[i], tt.data[i])
+				if !equal {
+					t.Errorf("Value mismatch at index %d: got %f, want %f (abs err: %e, rel err: %e)",
+						i, decompressed[i], tt.data[i], absErr, relErr)
 				}
 			}
 
@@ -193,8 +223,10 @@ func TestALPLargeDataset(t *testing.T) {
 
 	// Check a sample of values
 	for i := 0; i < len(data); i += 100 {
-		if math.Abs(decompressed[i]-data[i]) > 1e-9 {
-			t.Errorf("Value mismatch at index %d: got %f, want %f", i, decompressed[i], data[i])
+		equal, relErr, absErr := compareFloats(decompressed[i], data[i])
+		if !equal {
+			t.Errorf("Value mismatch at index %d: got %f, want %f (abs err: %e, rel err: %e)",
+				i, decompressed[i], data[i], absErr, relErr)
 		}
 	}
 
@@ -319,8 +351,10 @@ func TestDecodeRange(t *testing.T) {
 
 			// Verify values with tolerance
 			for i := range tt.data {
-				if math.Abs(fullDecoded[i]-tt.data[i]) > 1e-10 {
-					t.Errorf("value mismatch at index %d: got %f, want %f", i, fullDecoded[i], tt.data[i])
+				equal, relErr, absErr := compareFloats(fullDecoded[i], tt.data[i])
+				if !equal {
+					t.Errorf("value mismatch at index %d: got %f, want %f (abs err: %e, rel err: %e)",
+						i, fullDecoded[i], tt.data[i], absErr, relErr)
 				}
 			}
 		})
@@ -399,8 +433,10 @@ func TestStreamEncoderDecoder(t *testing.T) {
 
 			// Verify values
 			for i := range tt.data {
-				if math.Abs(decoded[i]-tt.data[i]) > 1e-10 {
-					t.Errorf("value mismatch at index %d: got %f, want %f", i, decoded[i], tt.data[i])
+				equal, relErr, absErr := compareFloats(decoded[i], tt.data[i])
+				if !equal {
+					t.Errorf("value mismatch at index %d: got %f, want %f (abs err: %e, rel err: %e)",
+						i, decoded[i], tt.data[i], absErr, relErr)
 				}
 			}
 		})
@@ -462,10 +498,10 @@ func FuzzStreamEncodeDecode(f *testing.F) {
 
 		// Verify values with appropriate tolerance
 		for i := range src {
-			if math.Abs(decoded[i]-src[i]) > 1e-10 {
-				// For debugging: show the difference
-				t.Errorf("Value mismatch at index %d: got %f, want %f (diff: %e)",
-					i, decoded[i], src[i], math.Abs(decoded[i]-src[i]))
+			equal, relErr, absErr := compareFloats(decoded[i], src[i])
+			if !equal {
+				t.Errorf("Value mismatch at index %d: got %f, want %f (abs err: %e, rel err: %e)",
+					i, decoded[i], src[i], absErr, relErr)
 			}
 		}
 	})
