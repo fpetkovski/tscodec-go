@@ -3,6 +3,7 @@ package alp
 import (
 	"io"
 	"math"
+	"math/rand"
 	"testing"
 
 	"github.com/parquet-go/bitpack"
@@ -404,4 +405,68 @@ func TestStreamEncoderDecoder(t *testing.T) {
 			}
 		})
 	}
+}
+
+func FuzzStreamEncodeDecode(f *testing.F) {
+	// Add seed corpus with various sizes and block sizes
+	f.Add(uint8(10), uint8(5), int64(42))
+	f.Add(uint8(50), uint8(10), int64(123))
+	f.Add(uint8(100), uint8(30), int64(456))
+	f.Add(uint8(255), uint8(120), int64(789))
+	f.Add(uint8(1), uint8(1), int64(0))
+
+	f.Fuzz(func(t *testing.T, size uint8, blockSize uint8, seed int64) {
+		// Ensure valid parameters
+		if size == 0 {
+			size = 1
+		}
+		if blockSize == 0 {
+			blockSize = 1
+		}
+
+		// Generate random float64 data
+		src := make([]float64, size)
+		gen := randGen
+		if seed != 0 {
+			gen = rand.New(rand.NewSource(seed))
+		}
+		for i := range src {
+			src[i] = gen.Float64() * 100000000
+		}
+
+		// Encode with StreamEncode
+		compressed := StreamEncode(nil, src, int(blockSize))
+
+		// Decode with StreamDecoder
+		decoder := StreamDecoder{}
+		decoder.Reset(compressed, int(blockSize))
+
+		decoded := make([]float64, 0, len(src))
+		readBuf := make([]float64, blockSize)
+
+		for {
+			result, err := decoder.Decode(readBuf)
+			decoded = append(decoded, result...)
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				t.Fatalf("Unexpected decode error: %v", err)
+			}
+		}
+
+		// Verify length
+		if len(decoded) != len(src) {
+			t.Fatalf("Length mismatch: got %d, want %d", len(decoded), len(src))
+		}
+
+		// Verify values with appropriate tolerance
+		for i := range src {
+			if math.Abs(decoded[i]-src[i]) > 1e-10 {
+				// For debugging: show the difference
+				t.Errorf("Value mismatch at index %d: got %f, want %f (diff: %e)",
+					i, decoded[i], src[i], math.Abs(decoded[i]-src[i]))
+			}
+		}
+	})
 }
