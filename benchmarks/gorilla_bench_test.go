@@ -102,25 +102,17 @@ func BenchmarkFloats(b *testing.B) {
 			b.SetBytes(numSamples * 16)
 			b.ReportAllocs()
 
-			alpEncoder := alp.StreamEncoder{}
 			for b.Loop() {
-				alpEncoder.Reset(16)
-
 				tsc := dod.EncodeInt64(nil, ts)
-				alpEncoder.Encode(vs)
-				fsc := alpEncoder.Flush()
+				fsc := alp.StreamEncode(nil, vs, 16)
 				b.ReportMetric(float64(len(tsc)+len(fsc)), "compressed_bytes")
 			}
 		})
 		b.Run("decode", func(b *testing.B) {
 			b.ReportAllocs()
 
-			alpEncoder := alp.StreamEncoder{}
-			alpEncoder.Reset(8)
-
 			tsc := dod.EncodeInt64(nil, ts)
-			alpEncoder.Encode(vs)
-			fsc := alpEncoder.Flush()
+			fsc := alp.StreamEncode(nil, vs, 8)
 			b.SetBytes(int64(len(fsc) + len(tsc)))
 
 			const chunkSize = 10

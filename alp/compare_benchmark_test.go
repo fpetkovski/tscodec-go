@@ -449,11 +449,8 @@ func BenchmarkCompare_StreamVsRegular(b *testing.B) {
 			// Regular ALP
 			regularCompressed := Encode(nil, data)
 
-			// StreamEncoder with configured block size
-			encoder := StreamEncoder{}
-			encoder.Reset(blockSize)
-			encoder.Encode(data)
-			streamCompressed := encoder.Flush()
+			// StreamEncode with configured block size
+			streamCompressed := StreamEncode(nil, data, blockSize)
 
 			overhead := len(streamCompressed) - len(regularCompressed)
 			overheadPercent := float64(overhead) / float64(len(regularCompressed)) * 100

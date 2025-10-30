@@ -57,7 +57,7 @@ func EncodeInt32(dst []byte, src []int32) []byte {
 
 	// Encode the first value as int32 and bitpack the rest as int64
 	binary.LittleEndian.PutUint32(out[delta.HeaderSize:], uint32(encoded[0]))
-	bitpack.PackInt64(out[delta.HeaderSize+delta.Int32SizeBytes:], encoded[1:], uint(bitWidth))
+	bitpack.Pack(out[delta.HeaderSize+delta.Int32SizeBytes:], encoded[1:], uint(bitWidth))
 
 	return dst
 }
@@ -77,7 +77,7 @@ func DecodeInt32(dst []int32, src []byte) uint16 {
 
 	// Unpack the adjusted delta-of-deltas as int64 to match encoding
 	adjustedDods := make([]int64, header.NumValues-1)
-	bitpack.UnpackInt64(adjustedDods, src[delta.HeaderSize+delta.Int32SizeBytes:], uint(header.BitWidth))
+	bitpack.Unpack(adjustedDods, src[delta.HeaderSize+delta.Int32SizeBytes:], uint(header.BitWidth))
 
 	numVals := int(header.NumValues)
 	// Bounds check hint

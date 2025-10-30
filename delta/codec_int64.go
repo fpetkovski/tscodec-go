@@ -65,7 +65,7 @@ func EncodeInt64(dst []byte, src []int64) []byte {
 
 	// Encode the first value as is and bitpack the rest.
 	binary.LittleEndian.PutUint64(dst[HeaderSize:HeaderSize+Int64SizeBytes], uint64(encoded[0]))
-	bitpack.PackInt64(dst[HeaderSize+Int64SizeBytes:], encoded[1:], uint(bitWidth))
+	bitpack.Pack(dst[HeaderSize+Int64SizeBytes:], encoded[1:], uint(bitWidth))
 
 	return dst
 }
@@ -82,7 +82,7 @@ func DecodeInt64(dst []int64, src []byte) uint16 {
 		return 1
 	}
 	dst[0] = int64(binary.LittleEndian.Uint64(src[HeaderSize : HeaderSize+Int64SizeBytes]))
-	bitpack.UnpackInt64(dst[1:header.NumValues], src[HeaderSize+Int64SizeBytes:], uint(header.BitWidth))
+	bitpack.Unpack(dst[1:header.NumValues], src[HeaderSize+Int64SizeBytes:], uint(header.BitWidth))
 
 	numVals := int(header.NumValues)
 	// Bounds check hint.
