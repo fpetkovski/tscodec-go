@@ -74,8 +74,8 @@ func BenchmarkFloats(b *testing.B) {
 			fsc := make([]byte, numSamples*8)
 
 			for b.Loop() {
-				tsc = dod.EncodeInt64(tsc[:0], ts)
-				fsc = alp.Encode(fsc[:0], vs)
+				tsc = dod.EncodeInt64(tsc, ts)
+				fsc = alp.Encode(fsc, vs)
 
 				b.ReportMetric(float64(len(tsc)+len(fsc)), "compressed_bytes")
 			}

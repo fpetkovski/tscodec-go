@@ -3,7 +3,6 @@ package dod
 import (
 	"encoding/binary"
 	"math"
-	"slices"
 
 	"github.com/parquet-go/bitpack"
 	"github.com/parquet-go/bitpack/unsafecast"
@@ -19,10 +18,11 @@ func EncodeUInt64(dst []byte, src []uint64) []byte {
 	case 0:
 		return dst
 	case 1:
-		offset := len(dst)
-		dst = slices.Grow(dst, delta.HeaderSize)[:len(dst)+delta.HeaderSize]
-		out := dst[offset:]
-		delta.EncodeHeader(out, 1, int64(src[0]), 0)
+		if cap(dst) < delta.HeaderSize {
+			dst = make([]byte, delta.HeaderSize)
+		}
+		dst = dst[:delta.HeaderSize]
+		delta.EncodeHeader(dst, 1, int64(src[0]), 0)
 		return dst
 	}
 
@@ -49,15 +49,14 @@ func EncodeUInt64(dst []byte, src []uint64) []byte {
 
 	packedSize := bitpack.ByteCount(uint((len(encoded) - 1) * bitWidth))
 	totalSize := packedSize + delta.Int64SizeBytes + delta.HeaderSize + bitpack.PaddingInt64
-	offset := len(dst)
-	dst = slices.Grow(dst, totalSize)[:len(dst)+totalSize]
-	out := dst[offset:]
-
-	delta.EncodeHeader(out, uint16(len(src)), minVal, uint8(bitWidth))
+	if cap(dst) < totalSize {
+		dst = make([]byte, totalSize)
+	}
 
 	// Encode the first value as is and bitpack the rest.
-	binary.LittleEndian.PutUint64(out[delta.HeaderSize:delta.HeaderSize+delta.Int64SizeBytes], uint64(encoded[0]))
-	bitpack.Pack(out[delta.HeaderSize+delta.Int64SizeBytes:], unsafecast.Slice[int64](encoded[1:]), uint(bitWidth))
+	delta.EncodeHeader(dst, uint16(len(src)), minVal, uint8(bitWidth))
+	binary.LittleEndian.PutUint64(dst[delta.HeaderSize:delta.HeaderSize+delta.Int64SizeBytes], uint64(encoded[0]))
+	bitpack.Pack(dst[delta.HeaderSize+delta.Int64SizeBytes:], unsafecast.Slice[int64](encoded[1:]), uint(bitWidth))
 
 	return dst
 }

@@ -31,7 +31,7 @@ func compareFloats(a, b float64) (equal bool, relError, absError float64) {
 	if maxAbs < 1.0 {
 		equal = absError <= 1e-10
 	} else {
-		equal = relError <= 1e-11  // Slightly more tolerant than 1e-12 to account for ALP precision
+		equal = relError <= 1e-11 // Slightly more tolerant than 1e-12 to account for ALP precision
 	}
 
 	return
