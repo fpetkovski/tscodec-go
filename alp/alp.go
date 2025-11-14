@@ -66,6 +66,7 @@ func Encode(dst []byte, src []float64) []byte {
 		if cap(dst) < MetadataSize {
 			dst = make([]byte, MetadataSize)
 		}
+		dst = dst[:MetadataSize]
 		encodeMetadata(dst, CompressionMetadata{
 			EncodingType:  EncodingConstant,
 			Count:         int32(len(src)),
